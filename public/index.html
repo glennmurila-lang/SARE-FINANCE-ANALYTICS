@@ -236,6 +236,23 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:11px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:9999;animation:slideUp 0.3s ease;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px}
 @keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
 @media(max-width:900px){.sidebar{width:200px}.main-content{margin-left:200px}.role-grid{grid-template-columns:repeat(3,1fr)}.swot-grid,.grid-2{grid-template-columns:1fr}.auth-left{display:none}.auth-right{width:100%}}
+
+.dept-card{border-radius:var(--radius);border:1px solid var(--gray-200);padding:16px 18px;background:#fff;box-shadow:var(--shadow-sm);transition:all 0.2s}
+.dept-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.dept-color-bar{height:4px;border-radius:2px;margin-bottom:12px}
+.dept-name{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:3px}
+.dept-desc{font-size:12px;color:var(--gray-600);margin-bottom:10px}
+.dept-count{font-size:11px;font-weight:600;color:var(--gray-400)}
+.dept-actions{display:flex;gap:6px;margin-top:10px}
+.access-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);font-size:12px}
+.access-row:last-child{border:none}
+.access-level-pill{font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:0.04em}
+.al-executive{background:#DBEAFE;color:#1E40AF}
+.al-senior{background:#D1FAE5;color:#065F46}
+.al-manager{background:#EDE9FE;color:#5B21B6}
+.al-analyst{background:var(--gray-100);color:var(--gray-600)}
+.eye-yes{color:var(--green);font-weight:700;font-size:12px}
+.eye-no{color:var(--gray-400);font-size:12px}
 </style>
 </head>
 <body>
@@ -323,7 +340,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
       </div>
       <div class="nav-section" id="admin-nav-section" style="display:none">
         <div class="nav-section-label">Administration</div>
-        <button class="nav-item" onclick="gotoView('admin')"><span class="nav-icon">👥</span>User Management</button>
+        <button class="nav-item" onclick="gotoView('admin')"><span class="nav-icon">⚙️</span>Administration</button>
       </div>
     </div>
     <div class="sidebar-footer">
@@ -465,24 +482,91 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 
       <!-- ADMIN -->
       <div id="view-admin" style="display:none">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <div class="card-title" style="margin:0">👥 User Management</div>
-            <button class="topbar-btn primary" onclick="openAddUser()">＋ Add User</button>
-          </div>
-          <div style="overflow-x:auto">
-            <table class="admin-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Organisation</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead>
+
+        <!-- Sub-tabs -->
+        <div class="tab-row" style="margin-bottom:20px">
+          <button class="tab-btn active" onclick="adminTab(this,'at-users')">👥 Users</button>
+          <button class="tab-btn" onclick="adminTab(this,'at-depts')">🏢 Departments</button>
+          <button class="tab-btn" onclick="adminTab(this,'at-roles')">🎭 Roles</button>
+          <button class="tab-btn" onclick="adminTab(this,'at-access')">🔐 Access Map</button>
+        </div>
+
+        <!-- USERS TAB -->
+        <div id="at-users">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin:0">All users</div>
+              <div style="display:flex;gap:8px">
+                <select id="filter-dept" class="form-select" style="width:160px;padding:7px 10px;font-size:12px" onchange="loadUsers()"><option value="">All departments</option></select>
+                <button class="topbar-btn primary" onclick="openAddUser()">＋ Add user</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto"><table class="admin-table">
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Access</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead>
               <tbody id="users-tbody"></tbody>
-            </table>
+            </table></div>
           </div>
         </div>
-        <div class="card" style="background:#F0F7FF;border-color:#BFDBFE">
-          <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:6px">Invite code for new self-registrations</div>
-          <div style="font-size:20px;font-weight:700;color:var(--navy);letter-spacing:0.1em" id="invite-code-display">SARE2024</div>
-          <div style="font-size:11px;color:#1E40AF;margin-top:4px">Share this code with people you want to give access to. They register at the login page.</div>
+
+        <!-- DEPARTMENTS TAB -->
+        <div id="at-depts" style="display:none">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin:0">Departments</div>
+              <button class="topbar-btn primary" onclick="openAddDept()">＋ New department</button>
+            </div>
+            <div id="depts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px"></div>
+          </div>
+          <div class="card" style="background:#F0F7FF;border-color:#BFDBFE;margin-top:0">
+            <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:6px">How departments work</div>
+            <div style="font-size:12px;color:#1E40AF;line-height:1.7">
+              · Users in the same department can only see each other and their own analysis<br>
+              · Executive-level roles (CEO, CFO, Admin, Board Member, Auditor) can see ALL departments<br>
+              · Department Heads and Managers see only their own department<br>
+              · You can create as many departments as you need
+            </div>
+          </div>
+        </div>
+
+        <!-- ROLES TAB -->
+        <div id="at-roles" style="display:none">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin:0">Roles</div>
+              <button class="topbar-btn primary" onclick="openAddRole()">＋ New role</button>
+            </div>
+            <div style="overflow-x:auto"><table class="admin-table">
+              <thead><tr><th>Role name</th><th>Access level</th><th>Sees all departments</th><th>Description</th><th>Users</th><th>Actions</th></tr></thead>
+              <tbody id="roles-tbody"></tbody>
+            </table></div>
+          </div>
+          <div class="card" style="background:#F0FDF9;border-color:#A7F3D0;margin-top:0">
+            <div style="font-size:12px;font-weight:700;color:#065F46;margin-bottom:6px">Access levels explained</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:#065F46">
+              <div><strong>Executive</strong> — sees all departments, all data</div>
+              <div><strong>Senior</strong> — own department, full detail</div>
+              <div><strong>Manager</strong> — own department, summary view</div>
+              <div><strong>Analyst</strong> — own department, reports only</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ACCESS MAP TAB -->
+        <div id="at-access" style="display:none">
+          <div class="card">
+            <div class="card-title">🔐 Access control map</div>
+            <div id="access-map"></div>
+          </div>
+        </div>
+
+        <!-- Invite code card -->
+        <div class="card" style="background:#F0F7FF;border-color:#BFDBFE;margin-top:14px">
+          <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:4px">Self-registration invite code</div>
+          <div style="font-size:22px;font-weight:700;color:var(--navy);letter-spacing:0.12em">SARE2024</div>
+          <div style="font-size:11px;color:#1E40AF;margin-top:4px">Share this privately with people you want to allow to register themselves. They choose their own password.</div>
         </div>
       </div>
+
 
     </div>
   </div>
@@ -509,7 +593,7 @@ let currentRole='cfo', uploadedFiles=[], analysisResult=null, charts={}, chartsB
 
 const API = window.location.origin;
 const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth & Strategy',manager:'Manager Level · Operational KPIs',board:'Board Pack · Governance & Risk',auditor:'Auditor Level · Compliance & Controls'};
-const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your Wallet as a Service reports'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all 42 WaaS categories'},admin:{title:'User Management',sub:'Add, edit and manage team access'}};
+const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your Wallet as a Service reports'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all 42 WaaS categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'}};
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(endpoint, method='GET', body=null) {
@@ -597,7 +681,7 @@ function gotoView(v){
   document.getElementById('page-sub').textContent=m.sub;
   document.getElementById('new-btn').style.display=(v!=='upload'&&analysisResult)?'flex':'none';
   if(v==='trends'&&analysisResult&&!chartsBuilt)buildCharts();
-  if(v==='admin'&&USER?.role==='admin')loadUsers();
+  if(v==='admin'&&USER?.role==='admin'){loadUsers();}
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
@@ -808,6 +892,341 @@ function toast(msg){const el=document.getElementById('toast');el.innerHTML=msg;e
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 function demoData(r){return{role:r,summary:'Wallet platform shows strong growth with KES 18.6M net revenue, up 15.2% MoM. Key risks include a widening settlement gap of KES 4.1M and dormant wallet growth of 18.4% requiring immediate regulatory attention.',kpis:[{label:'Total Wallet Liability',value:'KES 2.4B',delta:'+12.3%',positive:true},{label:'Transaction Volume',value:'847K',delta:'+8.7%',positive:true},{label:'Failed Txn Rate',value:'3.2%',delta:'-0.8%',positive:true},{label:'Net Revenue',value:'KES 18.6M',delta:'+15.2%',positive:true},{label:'Dormant Wallets',value:'2,340',delta:'+18.4%',positive:false},{label:'Settlement Gap',value:'KES 4.1M',delta:'+32%',positive:false}],swot:{strengths:['Transaction volume growing 8.7% MoM — ahead of industry 6% benchmark','Revenue efficiency improving: net revenue per transaction up 6%','Agent commission model healthy at 1.8% of transaction value within 2% ceiling','Wallet activation rate strong at 94% of registered customers'],weaknesses:['Dormant wallet ratio accelerating at 18.4% — float liability and compliance risk','Settlement gap of KES 4.1M growing 32% — approaching CBK reporting threshold','Failed transaction rate at 3.2% above industry 2% benchmark'],opportunities:['Agent expansion into tier-2 markets with 340 merchants in onboarding pipeline','Float investment yield potential: KES 800K additional monthly revenue','Merchant wallet adoption creating new commission income streams'],threats:['CBK regulatory pressure on dormant wallet reclassification rules','Competitor mobile platforms compressing fee structures in key segments','FX exposure risk if multi-currency wallet rollout proceeds']},insights:[{title:'Settlement gap approaching regulatory trigger',body:'The KES 4.1M settlement gap has grown 32% in 30 days. Under CBK guidelines unresolved gaps exceeding 45 days trigger mandatory disclosure — escalate immediately.',type:'danger',badge:'Critical'},{title:'Dormant wallet liability accelerating',body:'Dormant wallet count grew 18.4% — fastest-growing category. This creates regulatory float liability and customer re-engagement obligation under CBK wallet regulations.',type:'warning',badge:'Watch'},{title:'Revenue per transaction improving',body:'Net revenue per transaction improved 6% indicating better product mix and reduced fee waivers across all channels.',type:'success',badge:'Good'},{title:'Agent commission structure healthy',body:'Agent commission payouts at 1.8% remain within the approved 2% ceiling. Merchant commission is outperforming on new tier pricing.',type:'info',badge:'Info'}],recommendations:['Initiate dormant wallet re-engagement campaign within 14 days — SMS + USSD outreach','Escalate settlement gap to CFO and Head of Operations — target resolution within 21 days','Commission CBS audit of failed transaction root cause against system logs','Fast-track 340 merchants in onboarding pipeline for Q3 revenue diversification','Commission float investment feasibility study — KES 800K monthly yield unrealised'],trends:{revenue:{labels:['Jan','Feb','Mar','Apr','May','Jun'],data:[12.1,14.5,13.2,17.8,16.5,18.6],growth:'8.3%',topProduct:'Mobile Transfers'},wallets:{labels:['Jan','Feb','Mar','Apr','May','Jun'],active:[4200,4500,4800,5100,5400,5900],dormant:[120,145,180,165,200,340]},transactions:{labels:['Jan','Feb','Mar','Apr','May','Jun'],success:[8200,9100,8700,10200,9800,11500],failed:[320,280,410,295,330,420],pending:[180,220,195,240,210,260]},compliance:{labels:['Jan','Feb','Mar','Apr','May','Jun'],highValue:[45,52,48,61,58,70],dormantFlags:[12,18,15,22,19,31]}},gapChecker:{present:['General Ledger Report','Trial Balance Report','Chart of Accounts','Wallet Liability Summary','Transaction Register','Revenue Summary Report','Commission Summary Report','Settlement Summary Report','Settlement Aging Report','High Value Transactions Report'],missing:['Float/Pooled Account Balance Report','Sanctions Screening Report','SAR Log','Customer Onboarding Report','API Error Report'],warning:['Dormant Account Compliance Report (incomplete)','Settlement Reconciliation (partial period)','Commission Reconciliation (missing Q1)']},standardChecklist:[{item:'All 12 WaaS categories covered',status:'warn'},{item:'GL reconciliation present',status:'pass'},{item:'Settlement aging attached',status:'pass'},{item:'Dormant compliance complete',status:'fail'},{item:'SAP batch report included',status:'fail'},{item:'Commission reconciliation attached',status:'warn'},{item:'Audit trail complete',status:'pass'}]};}
+
+
+// ── Admin sub-tabs ────────────────────────────────────────────────────────────
+function adminTab(btn,id){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['at-users','at-depts','at-roles','at-access'].forEach(tid=>document.getElementById(tid).style.display=(tid===id?'block':'none'));
+  if(id==='at-depts')loadDepts();
+  if(id==='at-roles')loadRoles();
+  if(id==='at-access')loadAccessMap();
+}
+
+// ── Load departments into filter dropdown ─────────────────────────────────────
+async function loadDeptFilter(){
+  try{
+    const depts=await api('/api/departments');
+    const sel=document.getElementById('filter-dept');
+    if(!sel)return;
+    sel.innerHTML='<option value="">All departments</option>'+depts.map(d=>`<option value="${d.name}">${d.name}</option>`).join('');
+  }catch{}
+}
+
+// ── USERS ─────────────────────────────────────────────────────────────────────
+async function loadUsers(){
+  try{
+    const users=await api('/api/admin/users');
+    const filter=document.getElementById('filter-dept')?.value||'';
+    const filtered=filter?users.filter(u=>u.department===filter):users;
+    const alClass={executive:'al-executive',senior:'al-senior',manager:'al-manager',analyst:'al-analyst'};
+    document.getElementById('users-tbody').innerHTML=filtered.map(u=>`
+      <tr>
+        <td><strong>${u.name}</strong></td>
+        <td style="color:var(--gray-600);font-size:12px">${u.email}</td>
+        <td><span class="role-pill rp-${(u.role||'').toLowerCase().replace(/\s+/g,'-')}">${u.role||'—'}</span></td>
+        <td><span style="font-size:12px;font-weight:600;color:var(--navy)">${u.department||'—'}</span></td>
+        <td><span class="access-level-pill ${alClass[u.accessLevel]||'al-analyst'}">${u.accessLevel||'analyst'}</span></td>
+        <td><span class="${u.active?'status-active':'status-inactive'}">${u.active?'● Active':'● Disabled'}</span></td>
+        <td style="color:var(--gray-400);font-size:11px">${u.lastLogin?new Date(u.lastLogin).toLocaleDateString():'Never'}</td>
+        <td>
+          <button class="tbl-btn" onclick="openEditUser('${u._id||u.id}','${u.name}','${u.email}','${u.role||''}','${u.department||''}','${u.accessLevel||'analyst'}','${u.org||''}',${u.active})">Edit</button>
+          <button class="tbl-btn red" onclick="toggleUser('${u._id||u.id}',${u.active},'${u.name}')">${u.active?'Disable':'Enable'}</button>
+          <button class="tbl-btn red" onclick="deleteUser('${u._id||u.id}','${u.name}')">Delete</button>
+        </td>
+      </tr>`).join('');
+    loadDeptFilter();
+  }catch(e){toast('Failed to load users: '+e.message);}
+}
+
+async function openAddUser(){
+  const [depts,roles]=await Promise.all([api('/api/departments'),api('/api/roles')]);
+  document.getElementById('modal-title').textContent='Add new user';
+  document.getElementById('modal-sub').textContent='User will be assigned to a department and role.';
+  document.getElementById('modal-error').style.display='none';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Full name</label><input class="form-input" id="m-name" type="text" placeholder="Jane Doe"></div>
+    <div class="form-group"><label class="form-label">Email address</label><input class="form-input" id="m-email" type="email" placeholder="jane@company.com"></div>
+    <div class="form-group"><label class="form-label">Password</label><input class="form-input" id="m-pass" type="text" value="Welcome@2024"></div>
+    <div class="form-group"><label class="form-label">Department</label>
+      <select class="form-select" id="m-dept" onchange="syncAccessLevel()">${depts.map(d=>`<option value="${d.name}">${d.name}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label class="form-label">Role</label>
+      <select class="form-select" id="m-role" onchange="syncAccessLevel()">${roles.map(r=>`<option value="${r.name}" data-level="${r.accessLevel}" data-allsee="${r.canSeeAllDepts}">${r.name}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label class="form-label">Access level (auto-set by role)</label>
+      <select class="form-select" id="m-level">
+        <option value="executive">Executive — all departments</option>
+        <option value="senior">Senior — own department full</option>
+        <option value="manager">Manager — own department summary</option>
+        <option value="analyst" selected>Analyst — reports only</option>
+      </select>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitAddUser()">Add user</button>`;
+  document.getElementById('modal-overlay').style.display='flex';
+  syncAccessLevel();
+}
+
+function syncAccessLevel(){
+  const roleSelect=document.getElementById('m-role');
+  if(!roleSelect)return;
+  const opt=roleSelect.options[roleSelect.selectedIndex];
+  if(opt&&opt.dataset.level){
+    const lv=document.getElementById('m-level');
+    if(lv)lv.value=opt.dataset.level;
+  }
+}
+
+async function submitAddUser(){
+  document.getElementById('modal-error').style.display='none';
+  try{
+    await api('/api/admin/users','POST',{
+      name:document.getElementById('m-name').value.trim(),
+      email:document.getElementById('m-email').value.trim(),
+      password:document.getElementById('m-pass').value,
+      role:document.getElementById('m-role').value,
+      department:document.getElementById('m-dept').value,
+      accessLevel:document.getElementById('m-level').value,
+      org:'SARE Analytics'
+    });
+    closeModal();loadUsers();toast('✅ User added successfully');
+  }catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
+}
+
+async function openEditUser(id,name,email,role,dept,level,org,active){
+  const [depts,roles]=await Promise.all([api('/api/departments'),api('/api/roles')]);
+  document.getElementById('modal-title').textContent='Edit user';
+  document.getElementById('modal-sub').textContent='Update details, department, role or reset password.';
+  document.getElementById('modal-error').style.display='none';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Full name</label><input class="form-input" id="m-name" type="text" value="${name}"></div>
+    <div class="form-group"><label class="form-label">Email address</label><input class="form-input" id="m-email" type="email" value="${email}"></div>
+    <div class="form-group"><label class="form-label">New password (leave blank to keep)</label><input class="form-input" id="m-pass" type="text" placeholder="Leave blank to keep current"></div>
+    <div class="form-group"><label class="form-label">Department</label>
+      <select class="form-select" id="m-dept">${depts.map(d=>`<option value="${d.name}" ${d.name===dept?'selected':''}>${d.name}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label class="form-label">Role</label>
+      <select class="form-select" id="m-role" onchange="syncAccessLevel()">${roles.map(r=>`<option value="${r.name}" data-level="${r.accessLevel}" ${r.name===role?'selected':''}>${r.name}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label class="form-label">Access level</label>
+      <select class="form-select" id="m-level">
+        <option value="executive" ${level==='executive'?'selected':''}>Executive — all departments</option>
+        <option value="senior" ${level==='senior'?'selected':''}>Senior — own department full</option>
+        <option value="manager" ${level==='manager'?'selected':''}>Manager — own department summary</option>
+        <option value="analyst" ${level==='analyst'?'selected':''}>Analyst — reports only</option>
+      </select>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitEditUser('${id}',${active})">Save changes</button>`;
+  document.getElementById('modal-overlay').style.display='flex';
+}
+
+async function submitEditUser(id,active){
+  document.getElementById('modal-error').style.display='none';
+  const pass=document.getElementById('m-pass').value;
+  const body={name:document.getElementById('m-name').value.trim(),email:document.getElementById('m-email').value.trim(),role:document.getElementById('m-role').value,department:document.getElementById('m-dept').value,accessLevel:document.getElementById('m-level').value,org:'SARE Analytics',active};
+  if(pass)body.password=pass;
+  try{await api('/api/admin/users/'+id,'PUT',body);closeModal();loadUsers();toast('✅ User updated');}
+  catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
+}
+
+async function toggleUser(id,active,name){
+  if(!confirm(`${active?'Disable':'Enable'} ${name}?`))return;
+  try{await api('/api/admin/users/'+id,'PUT',{active:!active});loadUsers();toast(`User ${active?'disabled':'enabled'}`);}
+  catch(e){toast('Error: '+e.message);}
+}
+
+async function deleteUser(id,name){
+  if(!confirm(`Permanently delete ${name}?`))return;
+  try{await api('/api/admin/users/'+id,'DELETE');loadUsers();toast('User deleted');}
+  catch(e){toast('Error: '+e.message);}
+}
+
+// ── DEPARTMENTS ───────────────────────────────────────────────────────────────
+async function loadDepts(){
+  try{
+    const [depts,users]=await Promise.all([api('/api/departments'),api('/api/admin/users')]);
+    const countMap={};
+    users.forEach(u=>{countMap[u.department]=(countMap[u.department]||0)+1;});
+    document.getElementById('depts-grid').innerHTML=depts.map(d=>`
+      <div class="dept-card">
+        <div class="dept-color-bar" style="background:${d.color||'#6B7280'}"></div>
+        <div class="dept-name">${d.name}</div>
+        <div class="dept-desc">${d.description||''}</div>
+        <div class="dept-count">${countMap[d.name]||0} user${(countMap[d.name]||0)!==1?'s':''}</div>
+        <div class="dept-actions">
+          <button class="tbl-btn" onclick="openEditDept('${d._id}','${d.name}','${d.description||''}','${d.color||'#6B7280'}')">Edit</button>
+          <button class="tbl-btn red" onclick="deleteDept('${d._id}','${d.name}')">Delete</button>
+        </div>
+      </div>`).join('');
+  }catch(e){toast('Failed to load departments: '+e.message);}
+}
+
+function openAddDept(){
+  document.getElementById('modal-title').textContent='New department';
+  document.getElementById('modal-sub').textContent='Create a new department and assign users to it.';
+  document.getElementById('modal-error').style.display='none';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Department name</label><input class="form-input" id="m-dname" type="text" placeholder="e.g. Finance"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="m-ddesc" type="text" placeholder="e.g. Finance and accounting team"></div>
+    <div class="form-group"><label class="form-label">Colour</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="colour-picker">
+        ${['#1B6FE4','#0DAF6A','#D97706','#E53E3E','#534AB7','#0891B2','#DB2777','#65A30D'].map(c=>`<div onclick="selectColor('${c}')" data-color="${c}" style="width:28px;height:28px;background:${c};border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all 0.15s" title="${c}"></div>`).join('')}
+      </div>
+      <input type="hidden" id="m-dcolor" value="#1B6FE4">
+    </div>`;
+  document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitAddDept()">Create department</button>`;
+  document.getElementById('modal-overlay').style.display='flex';
+  selectColor('#1B6FE4');
+}
+
+function selectColor(c){
+  document.getElementById('m-dcolor').value=c;
+  document.querySelectorAll('#colour-picker div').forEach(el=>{el.style.border=el.dataset.color===c?'2px solid #1a1a1a':'2px solid transparent';el.style.transform=el.dataset.color===c?'scale(1.2)':'scale(1)';});
+}
+
+async function submitAddDept(){
+  document.getElementById('modal-error').style.display='none';
+  try{
+    await api('/api/departments','POST',{name:document.getElementById('m-dname').value.trim(),description:document.getElementById('m-ddesc').value.trim(),color:document.getElementById('m-dcolor').value});
+    closeModal();loadDepts();toast('✅ Department created');
+  }catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
+}
+
+function openEditDept(id,name,desc,color){
+  document.getElementById('modal-title').textContent='Edit department';
+  document.getElementById('modal-sub').textContent='Update department details.';
+  document.getElementById('modal-error').style.display='none';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Department name</label><input class="form-input" id="m-dname" type="text" value="${name}"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="m-ddesc" type="text" value="${desc}"></div>
+    <div class="form-group"><label class="form-label">Colour</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="colour-picker">
+        ${['#1B6FE4','#0DAF6A','#D97706','#E53E3E','#534AB7','#0891B2','#DB2777','#65A30D'].map(c=>`<div onclick="selectColor('${c}')" data-color="${c}" style="width:28px;height:28px;background:${c};border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all 0.15s"></div>`).join('')}
+      </div>
+      <input type="hidden" id="m-dcolor" value="${color}">
+    </div>`;
+  document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitEditDept('${id}')">Save changes</button>`;
+  document.getElementById('modal-overlay').style.display='flex';
+  selectColor(color);
+}
+
+async function submitEditDept(id){
+  try{await api('/api/departments/'+id,'PUT',{name:document.getElementById('m-dname').value.trim(),description:document.getElementById('m-ddesc').value.trim(),color:document.getElementById('m-dcolor').value});closeModal();loadDepts();toast('✅ Department updated');}
+  catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
+}
+
+async function deleteDept(id,name){
+  if(!confirm(`Delete department "${name}"? All users must be moved first.`))return;
+  try{await api('/api/departments/'+id,'DELETE');loadDepts();toast('Department deleted');}
+  catch(e){toast('Error: '+e.message);}
+}
+
+// ── ROLES ─────────────────────────────────────────────────────────────────────
+async function loadRoles(){
+  try{
+    const [roles,users]=await Promise.all([api('/api/roles'),api('/api/admin/users')]);
+    const countMap={};
+    users.forEach(u=>{countMap[u.role]=(countMap[u.role]||0)+1;});
+    const alClass={executive:'al-executive',senior:'al-senior',manager:'al-manager',analyst:'al-analyst'};
+    document.getElementById('roles-tbody').innerHTML=roles.map(r=>`
+      <tr>
+        <td><strong>${r.name}</strong></td>
+        <td><span class="access-level-pill ${alClass[r.accessLevel]||'al-analyst'}">${r.accessLevel}</span></td>
+        <td><span class="${r.canSeeAllDepts?'eye-yes':'eye-no'}">${r.canSeeAllDepts?'✓ Yes':'— No'}</span></td>
+        <td style="font-size:12px;color:var(--gray-600)">${r.description||'—'}</td>
+        <td style="font-size:12px;font-weight:600;color:var(--navy)">${countMap[r.name]||0}</td>
+        <td>
+          <button class="tbl-btn" onclick="openEditRole('${r._id}','${r.name}','${r.accessLevel}',${r.canSeeAllDepts},'${(r.description||'').replace(/'/g,'')}')">Edit</button>
+          <button class="tbl-btn red" onclick="deleteRole('${r._id}','${r.name}')">Delete</button>
+        </td>
+      </tr>`).join('');
+  }catch(e){toast('Failed to load roles: '+e.message);}
+}
+
+function openAddRole(){
+  document.getElementById('modal-title').textContent='New role';
+  document.getElementById('modal-sub').textContent='Create a custom role for your organisation.';
+  document.getElementById('modal-error').style.display='none';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Role name</label><input class="form-input" id="m-rname" type="text" placeholder="e.g. Finance Manager"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="m-rdesc" type="text" placeholder="What this role can do"></div>
+    <div class="form-group"><label class="form-label">Access level</label>
+      <select class="form-select" id="m-rlevel">
+        <option value="executive">Executive — sees ALL departments</option>
+        <option value="senior">Senior — own department, full detail</option>
+        <option value="manager" selected>Manager — own department, summary</option>
+        <option value="analyst">Analyst — own department, reports only</option>
+      </select>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" id="m-rallsee" style="width:16px;height:16px;cursor:pointer">
+      <label for="m-rallsee" style="font-size:13px;cursor:pointer">Can see all departments (override)</label>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitAddRole()">Create role</button>`;
+  document.getElementById('modal-overlay').style.display='flex';
+}
+
+async function submitAddRole(){
+  document.getElementById('modal-error').style.display='none';
+  try{
+    await api('/api/roles','POST',{name:document.getElementById('m-rname').value.trim(),description:document.getElementById('m-rdesc').value.trim(),accessLevel:document.getElementById('m-rlevel').value,canSeeAllDepts:document.getElementById('m-rallsee').checked});
+    closeModal();loadRoles();toast('✅ Role created');
+  }catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
+}
+
+function openEditRole(id,name,level,allsee,desc){
+  document.getElementById('modal-title').textContent='Edit role';
+  document.getElementById('modal-sub').textContent='Update this role permissions.';
+  document.getElementById('modal-error').style.display='none';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Role name</label><input class="form-input" id="m-rname" type="text" value="${name}"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="m-rdesc" type="text" value="${desc}"></div>
+    <div class="form-group"><label class="form-label">Access level</label>
+      <select class="form-select" id="m-rlevel">
+        <option value="executive" ${level==='executive'?'selected':''}>Executive — sees ALL departments</option>
+        <option value="senior" ${level==='senior'?'selected':''}>Senior — own department, full detail</option>
+        <option value="manager" ${level==='manager'?'selected':''}>Manager — own department, summary</option>
+        <option value="analyst" ${level==='analyst'?'selected':''}>Analyst — own department, reports only</option>
+      </select>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" id="m-rallsee" ${allsee?'checked':''} style="width:16px;height:16px;cursor:pointer">
+      <label for="m-rallsee" style="font-size:13px;cursor:pointer">Can see all departments</label>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitEditRole('${id}')">Save changes</button>`;
+  document.getElementById('modal-overlay').style.display='flex';
+}
+
+async function submitEditRole(id){
+  try{await api('/api/roles/'+id,'PUT',{name:document.getElementById('m-rname').value.trim(),description:document.getElementById('m-rdesc').value.trim(),accessLevel:document.getElementById('m-rlevel').value,canSeeAllDepts:document.getElementById('m-rallsee').checked});closeModal();loadRoles();toast('✅ Role updated');}
+  catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
+}
+
+async function deleteRole(id,name){
+  if(!confirm(`Delete role "${name}"?`))return;
+  try{await api('/api/roles/'+id,'DELETE');loadRoles();toast('Role deleted');}
+  catch(e){toast('Error: '+e.message);}
+}
+
+// ── ACCESS MAP ────────────────────────────────────────────────────────────────
+async function loadAccessMap(){
+  try{
+    const [roles,depts]=await Promise.all([api('/api/roles'),api('/api/departments')]);
+    const alClass={executive:'al-executive',senior:'al-senior',manager:'al-manager',analyst:'al-analyst'};
+    const alLabel={executive:'All departments',senior:'Own dept — full',manager:'Own dept — summary',analyst:'Own dept — reports'};
+    document.getElementById('access-map').innerHTML=`
+      <div style="font-size:11px;color:var(--gray-400);margin-bottom:12px">Shows what each role can access. Executive-level roles see across all departments.</div>
+      ${roles.map(r=>`
+        <div class="access-row">
+          <div style="min-width:160px;font-weight:600;font-size:13px">${r.name}</div>
+          <span class="access-level-pill ${alClass[r.accessLevel]||'al-analyst'}">${r.accessLevel}</span>
+          <div style="flex:1;font-size:12px;color:var(--gray-600)">${alLabel[r.accessLevel]||'Own department'}</div>
+          <span class="${r.canSeeAllDepts?'eye-yes':'eye-no'}" style="min-width:80px">${r.canSeeAllDepts?'👁 All depts':'🔒 Own dept'}</span>
+          <div style="font-size:11px;color:var(--gray-400)">${r.description||''}</div>
+        </div>`).join('')}`;
+  }catch(e){toast('Failed to load access map');}
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init(){
