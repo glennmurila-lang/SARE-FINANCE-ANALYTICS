@@ -368,3 +368,72 @@ app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
 app.get('/api/health', (req,res) => res.json({ status:'ok', version:'4.0.0', emailEnabled:!!resend }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, () => console.log(`SARE Analytics v4 running on http://localhost:${PORT} | Email: ${resend?'enabled':'disabled (set RESEND_API_KEY)'}`));
+
+// ── Report History ────────────────────────────────────────────────────────────
+const historyDb = Datastore.create({ filename: path.join(__dirname, 'data', 'history.db'), autoload: true });
+const notesDb   = Datastore.create({ filename: path.join(__dirname, 'data', 'notes.db'),   autoload: true });
+
+// Save analysis
+app.post('/api/history', auth, async (req,res) => {
+  try {
+    const { role, perspective, filename, summary, kpis, swot, insights, recommendations, trends, gapChecker, rawData } = req.body;
+    const record = await historyDb.insert({
+      userId: req.user.id, userName: req.user.name,
+      department: req.user.department, org: req.user.org,
+      role, perspective, filename, summary, kpis, swot, insights,
+      recommendations, trends, gapChecker, rawData,
+      createdAt: new Date()
+    });
+    res.json({ id: record._id, success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get history (filtered by dept unless executive)
+app.get('/api/history', auth, async (req,res) => {
+  try {
+    const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
+    const query = isExec ? {} : { department: req.user.department };
+    const records = await historyDb.find(query).sort({ createdAt: -1 });
+    res.json(records.map(r => ({ ...r, id: r._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get single history record
+app.get('/api/history/:id', auth, async (req,res) => {
+  try {
+    const record = await historyDb.findOne({ _id: req.params.id });
+    if (!record) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...record, id: record._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete history record
+app.delete('/api/history/:id', auth, async (req,res) => {
+  try {
+    await historyDb.remove({ _id: req.params.id });
+    await notesDb.remove({ historyId: req.params.id }, { multi: true });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Notes on a history record
+app.get('/api/history/:id/notes', auth, async (req,res) => {
+  try { res.json(await notesDb.find({ historyId: req.params.id }).sort({ createdAt: 1 })); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/history/:id/notes', auth, async (req,res) => {
+  try {
+    const note = await notesDb.insert({ historyId: req.params.id, userId: req.user.id, userName: req.user.name, text: req.body.text, createdAt: new Date() });
+    res.json(note);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Compare two records
+app.get('/api/history/compare/:id1/:id2', auth, async (req,res) => {
+  try {
+    const [a, b] = await Promise.all([historyDb.findOne({ _id: req.params.id1 }), historyDb.findOne({ _id: req.params.id2 })]);
+    if (!a || !b) return res.status(404).json({ error: 'One or both records not found' });
+    res.json({ a: { ...a, id: a._id }, b: { ...b, id: b._id } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
