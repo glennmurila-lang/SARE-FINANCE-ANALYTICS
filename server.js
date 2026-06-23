@@ -8,47 +8,133 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const Datastore = require('nedb-promises');
+const { Resend } = require('resend');
 const fs = require('fs');
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'sare-analytics-secret-key-2024-waas';
 const PORT = process.env.PORT || 3000;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@sare.africa';
+const APP_URL = process.env.APP_URL || 'https://sare-finance-analytics.onrender.com';
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 // ── Databases ─────────────────────────────────────────────────────────────────
 if (!fs.existsSync(path.join(__dirname, 'data'))) fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-const db       = Datastore.create({ filename: path.join(__dirname, 'data', 'users.db'),       autoload: true });
-const deptDb   = Datastore.create({ filename: path.join(__dirname, 'data', 'depts.db'),       autoload: true });
-const rolesDb  = Datastore.create({ filename: path.join(__dirname, 'data', 'roles.db'),       autoload: true });
+const db      = Datastore.create({ filename: path.join(__dirname, 'data', 'users.db'),  autoload: true });
+const deptDb  = Datastore.create({ filename: path.join(__dirname, 'data', 'depts.db'),  autoload: true });
+const rolesDb = Datastore.create({ filename: path.join(__dirname, 'data', 'roles.db'),  autoload: true });
+
+// ── Email templates ───────────────────────────────────────────────────────────
+function emailBase(bodyHtml) {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:Inter,Arial,sans-serif;background:#f4f6f9;margin:0;padding:0}
+    .wrap{max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+    .header{background:#0B1929;padding:28px 32px;display:flex;align-items:center;gap:12px}
+    .logo{width:40px;height:40px;background:#1B6FE4;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;text-align:center;line-height:40px}
+    .brand{color:#fff;font-size:16px;font-weight:700}
+    .brand-sub{color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px}
+    .body{padding:32px}
+    .greeting{font-size:22px;font-weight:700;color:#0B1929;margin-bottom:8px}
+    .text{font-size:14px;color:#6B7280;line-height:1.7;margin-bottom:20px}
+    .cred-box{background:#F0F7FF;border:1px solid #BFDBFE;border-radius:8px;padding:16px 20px;margin:20px 0}
+    .cred-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #DBEAFE}
+    .cred-row:last-child{border:none}
+    .cred-label{color:#6B7280;font-weight:600}
+    .cred-value{color:#0B1929;font-weight:700;font-family:monospace}
+    .btn{display:block;width:fit-content;margin:24px auto;padding:13px 32px;background:#1B6FE4;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center}
+    .notice{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 16px;font-size:12px;color:#92400E;margin-top:16px}
+    .footer{background:#F9FAFB;padding:20px 32px;font-size:11px;color:#9CA3AF;text-align:center;border-top:1px solid #E5E7EB}
+  </style></head><body>
+  <div class="wrap">
+    <div class="header">
+      <div class="logo">S</div>
+      <div><div class="brand">SARE Analytics</div><div class="brand-sub">Make Cents Make Sense</div></div>
+    </div>
+    <div class="body">${bodyHtml}</div>
+    <div class="footer">SARE Analytics Intelligence Platform &nbsp;·&nbsp; Make Cents Make Sense<br>This is an automated message — please do not reply to this email.</div>
+  </div></body></html>`;
+}
+
+function welcomeEmail(name, email, password, role, department) {
+  return emailBase(`
+    <div class="greeting">Welcome to SARE Analytics, ${name}! 👋</div>
+    <p class="text">You have been added to the SARE Analytics Intelligence Platform. Use the credentials below to sign in and start generating executive-grade insights from your financial reports.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Login URL</span><span class="cred-value">${APP_URL}</span></div>
+      <div class="cred-row"><span class="cred-label">Email</span><span class="cred-value">${email}</span></div>
+      <div class="cred-row"><span class="cred-label">Password</span><span class="cred-value">${password}</span></div>
+      <div class="cred-row"><span class="cred-label">Role</span><span class="cred-value">${role}</span></div>
+      <div class="cred-row"><span class="cred-label">Department</span><span class="cred-value">${department}</span></div>
+    </div>
+    <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>
+    <div class="notice">🔒 For security, please change your password immediately after your first login. Click the "🔑 Password" button in the sidebar once you are signed in.</div>`);
+}
+
+function passwordResetEmail(name, email, newPassword) {
+  return emailBase(`
+    <div class="greeting">Password reset — ${name}</div>
+    <p class="text">Your SARE Analytics password has been reset by your administrator. Use the new password below to sign in.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Login URL</span><span class="cred-value">${APP_URL}</span></div>
+      <div class="cred-row"><span class="cred-label">Email</span><span class="cred-value">${email}</span></div>
+      <div class="cred-row"><span class="cred-label">New password</span><span class="cred-value">${newPassword}</span></div>
+    </div>
+    <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>
+    <div class="notice">🔒 Please change your password immediately after signing in.</div>`);
+}
+
+function accountStatusEmail(name, active) {
+  return emailBase(`
+    <div class="greeting">Account ${active ? 'activated' : 'disabled'} — ${name}</div>
+    <p class="text">Your SARE Analytics account has been <strong>${active ? 'activated' : 'disabled'}</strong> by your administrator.</p>
+    ${active
+      ? `<a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>`
+      : `<p class="text">If you believe this is an error, please contact your SARE administrator.</p>`
+    }`);
+}
+
+async function sendEmail(to, subject, html) {
+  if (!resend) { console.log(`[EMAIL SKIPPED - no API key] To: ${to} | Subject: ${subject}`); return { skipped: true }; }
+  try {
+    const result = await resend.emails.send({ from: `SARE Analytics <${FROM_EMAIL}>`, to, subject, html });
+    console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject}`);
+    return result;
+  } catch(e) { console.error(`[EMAIL FAILED] ${e.message}`); return { error: e.message }; }
+}
 
 // ── Seed ──────────────────────────────────────────────────────────────────────
 async function seed() {
-  // Admin user
   if (await db.count({}) === 0) {
     await db.insert({ name:'SARE Admin', email:'admin@sare.africa', password:bcrypt.hashSync('@Sare 2026!',10), role:'admin', department:'Executive', accessLevel:'executive', org:'SARE Analytics', active:true, createdAt:new Date() });
     console.log('Admin seeded');
   }
-  // Default departments
   if (await deptDb.count({}) === 0) {
-    const depts = ['Executive','Finance','Operations','Compliance','Board'];
-    for (const name of depts) await deptDb.insert({ name, description: name+' Department', color: {Executive:'#1B6FE4',Finance:'#0DAF6A',Operations:'#D97706',Compliance:'#E53E3E',Board:'#534AB7'}[name]||'#6B7280', createdAt:new Date() });
-    console.log('Default departments seeded');
+    const depts = [
+      { name:'Executive', description:'Executive leadership team', color:'#1B6FE4' },
+      { name:'Finance', description:'Finance and accounting team', color:'#0DAF6A' },
+      { name:'Operations', description:'Operations and logistics team', color:'#D97706' },
+      { name:'Compliance', description:'Compliance and risk team', color:'#E53E3E' },
+      { name:'Board', description:'Board of directors', color:'#534AB7' },
+    ];
+    for (const d of depts) await deptDb.insert({ ...d, createdAt:new Date() });
+    console.log('Departments seeded');
   }
-  // Default roles
   if (await rolesDb.count({}) === 0) {
     const roles = [
-      { name:'Admin',            accessLevel:'executive', canSeeAllDepts:true,  description:'Full platform access' },
-      { name:'CEO',              accessLevel:'executive', canSeeAllDepts:true,  description:'All departments, executive view' },
-      { name:'CFO',              accessLevel:'executive', canSeeAllDepts:true,  description:'All departments, financial focus' },
-      { name:'Board Member',     accessLevel:'executive', canSeeAllDepts:true,  description:'Read-only executive summaries' },
-      { name:'Department Head',  accessLevel:'senior',    canSeeAllDepts:false, description:'Own department full access' },
-      { name:'Senior Manager',   accessLevel:'senior',    canSeeAllDepts:false, description:'Own department full access' },
-      { name:'Manager',          accessLevel:'manager',   canSeeAllDepts:false, description:'Own department, no financials' },
-      { name:'Senior Analyst',   accessLevel:'analyst',   canSeeAllDepts:false, description:'Own department reports only' },
-      { name:'Analyst',          accessLevel:'analyst',   canSeeAllDepts:false, description:'Own department reports only' },
-      { name:'Auditor',          accessLevel:'senior',    canSeeAllDepts:true,  description:'Read-only all departments' },
+      { name:'Admin',           accessLevel:'executive', canSeeAllDepts:true,  description:'Full platform access' },
+      { name:'CEO',             accessLevel:'executive', canSeeAllDepts:true,  description:'All departments, executive view' },
+      { name:'CFO',             accessLevel:'executive', canSeeAllDepts:true,  description:'All departments, financial focus' },
+      { name:'Board Member',    accessLevel:'executive', canSeeAllDepts:true,  description:'Read-only executive summaries' },
+      { name:'Department Head', accessLevel:'senior',    canSeeAllDepts:false, description:'Own department full access' },
+      { name:'Senior Manager',  accessLevel:'senior',    canSeeAllDepts:false, description:'Own department full access' },
+      { name:'Manager',         accessLevel:'manager',   canSeeAllDepts:false, description:'Own department summary view' },
+      { name:'Senior Analyst',  accessLevel:'analyst',   canSeeAllDepts:false, description:'Own department reports only' },
+      { name:'Analyst',         accessLevel:'analyst',   canSeeAllDepts:false, description:'Own department reports only' },
+      { name:'Auditor',         accessLevel:'senior',    canSeeAllDepts:true,  description:'Read-only all departments' },
     ];
     for (const r of roles) await rolesDb.insert({ ...r, createdAt:new Date() });
-    console.log('Default roles seeded');
+    console.log('Roles seeded');
   }
 }
 seed();
@@ -98,7 +184,7 @@ app.post('/api/auth/register', async (req,res) => {
     if (password.length < 8) return res.status(400).json({ error:'Password must be at least 8 characters' });
     const existing = await db.findOne({ email:{ $regex:new RegExp(`^${email}$`,'i') } });
     if (existing) return res.status(409).json({ error:'Email already registered' });
-    const user = await db.insert({ name, email:email.toLowerCase(), password:bcrypt.hashSync(password,10), role:'Analyst', department:'Operations', accessLevel:'analyst', org:org||'My Organisation', active:true, createdAt:new Date() });
+    const user = await db.insert({ name, email:email.toLowerCase(), password:bcrypt.hashSync(password,10), role:'Analyst', department:'Operations', accessLevel:'analyst', org:org||'SARE Analytics', active:true, createdAt:new Date() });
     const token = jwt.sign({ id:user._id, email:user.email, name:user.name, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org }, JWT_SECRET, { expiresIn:'8h' });
     res.json({ token, user:{ id:user._id, name:user.name, email:user.email, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org } });
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -123,7 +209,6 @@ app.get('/api/departments', auth, async (req,res) => {
   try { res.json(await deptDb.find({})); }
   catch(e) { res.status(500).json({ error:e.message }); }
 });
-
 app.post('/api/departments', auth, adminOnly, async (req,res) => {
   try {
     const { name, description, color } = req.body;
@@ -133,18 +218,14 @@ app.post('/api/departments', auth, adminOnly, async (req,res) => {
     res.json(await deptDb.insert({ name, description:description||name+' Department', color:color||'#6B7280', createdAt:new Date() }));
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
-
 app.put('/api/departments/:id', auth, adminOnly, async (req,res) => {
-  try {
-    await deptDb.update({ _id:req.params.id }, { $set:{ name:req.body.name, description:req.body.description, color:req.body.color } });
-    res.json({ success:true });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  try { await deptDb.update({ _id:req.params.id }, { $set:{ name:req.body.name, description:req.body.description, color:req.body.color } }); res.json({ success:true }); }
+  catch(e) { res.status(500).json({ error:e.message }); }
 });
-
 app.delete('/api/departments/:id', auth, adminOnly, async (req,res) => {
   try {
     const dept = await deptDb.findOne({ _id:req.params.id });
-    if (!dept) return res.status(404).json({ error:'Department not found' });
+    if (!dept) return res.status(404).json({ error:'Not found' });
     const inUse = await db.count({ department:dept.name });
     if (inUse > 0) return res.status(400).json({ error:`Cannot delete — ${inUse} user(s) are in this department` });
     await deptDb.remove({ _id:req.params.id });
@@ -157,7 +238,6 @@ app.get('/api/roles', auth, async (req,res) => {
   try { res.json(await rolesDb.find({})); }
   catch(e) { res.status(500).json({ error:e.message }); }
 });
-
 app.post('/api/roles', auth, adminOnly, async (req,res) => {
   try {
     const { name, accessLevel, canSeeAllDepts, description } = req.body;
@@ -167,18 +247,14 @@ app.post('/api/roles', auth, adminOnly, async (req,res) => {
     res.json(await rolesDb.insert({ name, accessLevel:accessLevel||'analyst', canSeeAllDepts:!!canSeeAllDepts, description:description||'', createdAt:new Date() }));
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
-
 app.put('/api/roles/:id', auth, adminOnly, async (req,res) => {
-  try {
-    await rolesDb.update({ _id:req.params.id }, { $set:{ name:req.body.name, accessLevel:req.body.accessLevel, canSeeAllDepts:req.body.canSeeAllDepts, description:req.body.description } });
-    res.json({ success:true });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  try { await rolesDb.update({ _id:req.params.id }, { $set:{ name:req.body.name, accessLevel:req.body.accessLevel, canSeeAllDepts:req.body.canSeeAllDepts, description:req.body.description } }); res.json({ success:true }); }
+  catch(e) { res.status(500).json({ error:e.message }); }
 });
-
 app.delete('/api/roles/:id', auth, adminOnly, async (req,res) => {
   try {
     const role = await rolesDb.findOne({ _id:req.params.id });
-    if (!role) return res.status(404).json({ error:'Role not found' });
+    if (!role) return res.status(404).json({ error:'Not found' });
     const inUse = await db.count({ role:role.name });
     if (inUse > 0) return res.status(400).json({ error:`Cannot delete — ${inUse} user(s) have this role` });
     await rolesDb.remove({ _id:req.params.id });
@@ -186,7 +262,7 @@ app.delete('/api/roles/:id', auth, adminOnly, async (req,res) => {
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
-// ── Users (admin) ─────────────────────────────────────────────────────────────
+// ── Users ─────────────────────────────────────────────────────────────────────
 app.get('/api/admin/users', auth, adminOnly, async (req,res) => {
   try { res.json((await db.find({},{ password:0 })).map(u=>({ ...u, id:u._id }))); }
   catch(e) { res.status(500).json({ error:e.message }); }
@@ -194,21 +270,51 @@ app.get('/api/admin/users', auth, adminOnly, async (req,res) => {
 
 app.post('/api/admin/users', auth, adminOnly, async (req,res) => {
   try {
-    const { name, email, password, role, department, accessLevel, org } = req.body;
+    const { name, email, password, role, department, accessLevel, org, sendWelcomeEmail } = req.body;
     if (!name||!email||!password) return res.status(400).json({ error:'Name, email, password required' });
     if (await db.findOne({ email:{ $regex:new RegExp(`^${email}$`,'i') } }))
       return res.status(409).json({ error:'Email already exists' });
     const roleDoc = await rolesDb.findOne({ name:role });
-    const user = await db.insert({ name, email:email.toLowerCase(), password:bcrypt.hashSync(password,10), role:role||'Analyst', department:department||'Operations', accessLevel:accessLevel||(roleDoc?.accessLevel)||'analyst', org:org||'SARE Analytics', active:true, createdAt:new Date() });
-    res.json({ ...user, id:user._id, password:undefined });
+    const user = await db.insert({
+      name, email:email.toLowerCase(), password:bcrypt.hashSync(password,10),
+      role:role||'Analyst', department:department||'Operations',
+      accessLevel:accessLevel||(roleDoc?.accessLevel)||'analyst',
+      org:org||'SARE Analytics', active:true, createdAt:new Date()
+    });
+    // Send welcome email
+    if (sendWelcomeEmail !== false) {
+      await sendEmail(
+        email,
+        'Welcome to SARE Analytics — your login details',
+        welcomeEmail(name, email, password, role||'Analyst', department||'Operations')
+      );
+    }
+    res.json({ ...user, id:user._id, password:undefined, emailSent:!!resend });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
 app.put('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
   try {
     const { name, email, role, department, accessLevel, org, active, password } = req.body;
+    const user = await db.findOne({ _id:req.params.id }, { password:0 });
     const update = { name, email:email?.toLowerCase(), role, department, accessLevel, org, active };
-    if (password && password.length >= 8) update.password = bcrypt.hashSync(password,10);
+    if (password && password.length >= 8) {
+      update.password = bcrypt.hashSync(password,10);
+      // Send password reset email
+      await sendEmail(
+        user.email,
+        'Your SARE Analytics password has been reset',
+        passwordResetEmail(user.name, user.email, password)
+      );
+    }
+    // Send status change email if active status changed
+    if (user && user.active !== active) {
+      await sendEmail(
+        user.email,
+        `Your SARE Analytics account has been ${active?'activated':'disabled'}`,
+        accountStatusEmail(user.name, active)
+      );
+    }
     await db.update({ _id:req.params.id }, { $set:update });
     res.json({ success:true });
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -216,13 +322,12 @@ app.put('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
 
 app.delete('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
   try {
-    if (req.params.id === req.user.id) return res.status(400).json({ error:"Can't delete yourself" });
+    if (req.params.id === req.user.id) return res.status(400).json({ error:"Cannot delete your own account" });
     await db.remove({ _id:req.params.id });
     res.json({ success:true });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
-// ── Department members (non-admin can see own dept) ───────────────────────────
 app.get('/api/dept/members', auth, async (req,res) => {
   try {
     const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
@@ -250,6 +355,16 @@ app.post('/api/parse', auth, upload.array('files',10), (req,res) => {
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
-app.get('/api/health', (req,res) => res.json({ status:'ok', version:'3.0.0', service:'SARE Analytics Intelligence' }));
+// ── Email test route (admin only) ─────────────────────────────────────────────
+app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
+  try {
+    const result = await sendEmail(req.user.email, 'SARE Analytics — email test', emailBase(`
+      <div class="greeting">Email is working! ✅</div>
+      <p class="text">Your SARE Analytics email system is configured correctly. Emails will now be sent automatically when you add users, reset passwords, or change account status.</p>`));
+    res.json({ success:true, result });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.get('/api/health', (req,res) => res.json({ status:'ok', version:'4.0.0', emailEnabled:!!resend }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
-app.listen(PORT, () => console.log(`SARE Analytics v3 running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`SARE Analytics v4 running on http://localhost:${PORT} | Email: ${resend?'enabled':'disabled (set RESEND_API_KEY)'}`));
