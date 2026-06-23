@@ -1889,6 +1889,12 @@ let allSchedules = [];
 
 // ── Load schedules ────────────────────────────────────────────────────────────
 async function loadSchedules() {
+  // Show empty state immediately while loading
+  document.getElementById('schedules-empty').style.display='none';
+  document.getElementById('schedules-list').innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);font-size:13px">Loading schedules...</div>';
+  document.getElementById('sch-total').textContent='—';
+  document.getElementById('sch-overdue').textContent='—';
+  document.getElementById('sch-week').textContent='—';
   try {
     const schedules = await api('/api/schedules');
     allSchedules = schedules;
@@ -1942,10 +1948,19 @@ async function loadSchedules() {
         </div>
       </div>`;
     }).join('');
-  } catch(e) { toast('Failed to load schedules: ' + e.message); }
+  } catch(e) {
+    document.getElementById('schedules-list').innerHTML='';
+    document.getElementById('schedules-empty').style.display='block';
+    document.getElementById('sch-total').textContent='0';
+    document.getElementById('sch-overdue').textContent='0';
+    document.getElementById('sch-week').textContent='0';
+    if(e.message && !e.message.includes('401')) toast('Schedules: ' + e.message);
+  }
 }
 
 async function loadMyReports() {
+  document.getElementById('myreports-empty').style.display='none';
+  document.getElementById('myreports-list').innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);font-size:13px">Loading your reports...</div>';
   try {
     const pending = await api('/api/submissions/pending');
     if (pending.length === 0) {
@@ -1984,7 +1999,11 @@ async function loadMyReports() {
           </div>
         </div>`;
       }).join('')}`;
-  } catch(e) { toast('Failed to load reports: ' + e.message); }
+  } catch(e) {
+    document.getElementById('myreports-list').innerHTML='';
+    document.getElementById('myreports-empty').style.display='block';
+    if(e.message && !e.message.includes('401')) toast('My Reports: ' + e.message);
+  }
 }
 
 async function submitReport(scheduleId, fileInput) {
@@ -2009,6 +2028,8 @@ async function submitReport(scheduleId, fileInput) {
 }
 
 async function loadWorkflows() {
+  document.getElementById('workflows-empty').style.display='none';
+  document.getElementById('workflows-list').innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);font-size:13px">Loading submissions...</div>';
   try {
     const subs = await api('/api/submissions');
     const filter = document.getElementById('workflow-filter')?.value || '';
@@ -2037,7 +2058,11 @@ async function loadWorkflows() {
           <button class="tbl-btn" onclick="loadSubmissionIntoQuery('${s.id||s._id}')">💬 Query this report</button>
         </div>
       </div>`).join('');
-  } catch(e) { toast('Failed to load submissions: ' + e.message); }
+  } catch(e) {
+    document.getElementById('workflows-list').innerHTML='';
+    document.getElementById('workflows-empty').style.display='block';
+    if(e.message && !e.message.includes('401')) toast('Submissions: ' + e.message);
+  }
 }
 
 async function viewSubmissionInsights(id) {
