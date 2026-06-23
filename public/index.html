@@ -253,6 +253,45 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .al-analyst{background:var(--gray-100);color:var(--gray-600)}
 .eye-yes{color:var(--green);font-weight:700;font-size:12px}
 .eye-no{color:var(--gray-400);font-size:12px}
+
+.hist-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm);transition:all 0.2s}
+.hist-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.hist-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.hist-title{font-size:13px;font-weight:700;color:var(--navy)}
+.hist-meta{font-size:11px;color:var(--gray-400);margin-top:3px}
+.hist-kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.hist-kpi{background:var(--gray-50);border-radius:6px;padding:5px 10px;font-size:11px}
+.hist-kpi-label{color:var(--gray-400);margin-bottom:2px}
+.hist-kpi-value{font-weight:700;color:var(--navy);font-size:13px}
+.hist-actions{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-100)}
+.query-msg{padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:13px;line-height:1.7}
+.query-msg.user{background:var(--blue-light);border:1px solid #BFDBFE;color:#1E40AF;margin-left:40px}
+.query-msg.ai{background:var(--gray-50);border:1px solid var(--gray-200);color:var(--gray-800)}
+.query-msg.ai strong{color:var(--navy)}
+.structured-report{font-size:13px;line-height:1.8;color:var(--gray-800)}
+.structured-report h1{font-size:20px;font-weight:700;color:var(--navy);margin:0 0 6px;letter-spacing:-0.02em}
+.structured-report h2{font-size:15px;font-weight:700;color:var(--navy);margin:20px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--blue-light)}
+.structured-report h3{font-size:13px;font-weight:700;color:var(--gray-700);margin:14px 0 6px}
+.structured-report p{margin-bottom:10px;color:var(--gray-700)}
+.structured-report table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+.structured-report th{background:var(--navy);color:#fff;padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em}
+.structured-report td{padding:8px 12px;border-bottom:1px solid var(--gray-100)}
+.structured-report tr:nth-child(even) td{background:var(--gray-50)}
+.structured-report .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:12px 0}
+.structured-report .kpi-box{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:12px 14px}
+.structured-report .kpi-box .label{font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:0.05em}
+.structured-report .kpi-box .value{font-size:20px;font-weight:700;color:var(--navy);letter-spacing:-0.02em}
+.structured-report .kpi-box .delta{font-size:11px;font-weight:600;margin-top:3px}
+.evolution-chart{background:var(--gray-50);border-radius:var(--radius-sm);padding:14px;margin:12px 0}
+.compare-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px}
+.compare-header{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--blue)}
+.note-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100);font-size:12px}
+.note-item:last-child{border:none}
+.note-avatar{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.note-body{flex:1}
+.note-author{font-weight:600;color:var(--navy);font-size:11px}
+.note-text{color:var(--gray-700);margin-top:2px;line-height:1.5}
+.note-time{font-size:10px;color:var(--gray-400);margin-top:2px}
 </style>
 </head>
 <body>
@@ -337,6 +376,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div class="nav-section-label">Reports</div>
         <button class="nav-item" onclick="gotoView('builder')"><span class="nav-icon">🏗️</span>Report Builder</button>
         <button class="nav-item" onclick="gotoView('gaps')"><span class="nav-icon">🔍</span>Gap Checker <span id="gap-badge" class="nav-badge" style="display:none">!</span></button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-label">Intelligence</div>
+        <button class="nav-item" onclick="gotoView('history')"><span class="nav-icon">📚</span>Report History</button>
+        <button class="nav-item" onclick="gotoView('query')"><span class="nav-icon">💬</span>AI Query Engine</button>
       </div>
       <div class="nav-section" id="admin-nav-section" style="display:none">
         <div class="nav-section-label">Administration</div>
@@ -577,7 +621,119 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
   </div>
 </div>
 
-<!-- MODAL -->
+<!-- HISTORY VIEW -->
+      <div id="view-history" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div class="card-title" style="margin:0">📚 Analysis history</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="hist-filter" class="form-select" style="width:160px;padding:7px 10px;font-size:12px" onchange="loadHistory()">
+                <option value="">All departments</option>
+              </select>
+              <button class="topbar-btn" onclick="openCompare()">⚖ Compare two</button>
+            </div>
+          </div>
+        </div>
+        <div id="history-empty" class="empty-state"><span class="empty-icon">📚</span><div class="empty-title">No history yet</div><div class="empty-state-body">Run your first analysis to start building your history.</div></div>
+        <div id="history-list"></div>
+      </div>
+
+      <!-- QUERY VIEW -->
+      <div id="view-query" style="display:none">
+        <div class="grid-2" style="margin-bottom:14px">
+          <div class="card">
+            <div class="card-title">💬 AI Query Engine</div>
+            <div style="font-size:12px;color:var(--gray-600);margin-bottom:14px;line-height:1.6">Challenge any insight, ask follow-up questions, request scenario analysis, or build a structured report from your data.</div>
+            <div style="margin-bottom:10px">
+              <div class="section-label">Load a previous analysis (optional)</div>
+              <select id="query-history-select" class="form-select" style="font-size:12px;padding:8px 10px" onchange="loadQueryContext()">
+                <option value="">Type your own question or select a previous analysis</option>
+              </select>
+            </div>
+            <div id="query-context-preview" style="display:none;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--gray-600);margin-bottom:10px;max-height:80px;overflow:hidden"></div>
+            <div class="section-label" style="margin-top:4px">Quick queries</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+              <span class="report-pill" style="font-size:11px" onclick="setQuery('Why was the settlement gap flagged as critical and what are the top 3 actions to resolve it?')">🔴 Why critical?</span>
+              <span class="report-pill" style="font-size:11px" onclick="setQuery('What would happen to revenue if we reduced the failed transaction rate by 50%?')">📈 Scenario analysis</span>
+              <span class="report-pill" style="font-size:11px" onclick="setQuery('Compare the strengths and weaknesses and give me an alternative interpretation')">⚖ Alternative view</span>
+              <span class="report-pill" style="font-size:11px" onclick="setQuery('What are the top 5 risks I should present to the board next week?')">🏛 Board risks</span>
+              <span class="report-pill" style="font-size:11px" onclick="setQuery('Give me a 90-day action plan based on these insights')">📅 90-day plan</span>
+              <span class="report-pill" style="font-size:11px" onclick="setQuery('What metrics should I track weekly to stay on top of these issues?')">📊 Weekly metrics</span>
+            </div>
+            <textarea id="query-input" style="width:100%;min-height:90px;font-size:13px;padding:11px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit;resize:vertical;outline:none;color:var(--gray-800)" placeholder="Ask anything about your analysis... e.g. Why is the dormant wallet trend dangerous? What should my CFO do first? Build me a management accounts report." onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--gray-200)'"></textarea>
+            <button class="analyze-btn" style="margin-top:10px" id="query-btn" onclick="runQuery()"><span>✦</span> Ask the AI</button>
+          </div>
+          <div class="card">
+            <div class="card-title">📄 Build structured report</div>
+            <div style="font-size:12px;color:var(--gray-600);margin-bottom:14px">Turn your analysis or query output into a professionally formatted report.</div>
+            <div class="section-label">Report style</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+              <div class="role-card" onclick="selectReportStyle(this,'financial')" style="text-align:left;padding:10px 12px">
+                <div style="font-size:18px;margin-bottom:4px">📊</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">Financial Report</div>
+                <div style="font-size:10px;color:var(--gray-400)">P&L style · KES figures · Variance</div>
+              </div>
+              <div class="role-card" onclick="selectReportStyle(this,'management')" style="text-align:left;padding:10px 12px">
+                <div style="font-size:18px;margin-bottom:4px">📋</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">Management Accounts</div>
+                <div style="font-size:10px;color:var(--gray-400)">Monthly pack · Commentary</div>
+              </div>
+              <div class="role-card" onclick="selectReportStyle(this,'board')" style="text-align:left;padding:10px 12px">
+                <div style="font-size:18px;margin-bottom:4px">🏛️</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">Board Report</div>
+                <div style="font-size:10px;color:var(--gray-400)">Executive summary · Risk register</div>
+              </div>
+              <div class="role-card" onclick="selectReportStyle(this,'audit')" style="text-align:left;padding:10px 12px">
+                <div style="font-size:18px;margin-bottom:4px">🔍</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">Audit Report</div>
+                <div style="font-size:10px;color:var(--gray-400)">Findings · Evidence · Compliance</div>
+              </div>
+              <div class="role-card" onclick="selectReportStyle(this,'dashboard')" style="text-align:left;padding:10px 12px">
+                <div style="font-size:18px;margin-bottom:4px">📈</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">Dashboard View</div>
+                <div style="font-size:10px;color:var(--gray-400)">Charts · KPI cards · Visuals</div>
+              </div>
+              <div class="role-card" onclick="selectReportStyle(this,'investor')" style="text-align:left;padding:10px 12px">
+                <div style="font-size:18px;margin-bottom:4px">💼</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">Investor Brief</div>
+                <div style="font-size:10px;color:var(--gray-400)">Growth story · Key metrics</div>
+              </div>
+            </div>
+            <button class="analyze-btn" id="build-report-btn" onclick="buildStructuredReport()"><span>📄</span> Build Report</button>
+          </div>
+        </div>
+
+        <!-- Query output -->
+        <div id="query-output" style="display:none">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin:0" id="query-output-title">AI Response</div>
+              <div style="display:flex;gap:8px">
+                <button class="topbar-btn" onclick="exportQueryOutput()">⬇ Export</button>
+                <button class="topbar-btn primary" onclick="saveQueryToHistory()">💾 Save</button>
+              </div>
+            </div>
+            <div id="query-response"></div>
+          </div>
+          <!-- Visualization area -->
+          <div id="query-viz-area" style="display:none">
+            <div class="card">
+              <div class="card-title">📊 Visualizations</div>
+              <div id="query-charts"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Query conversation history -->
+        <div id="query-conversation" style="display:none">
+          <div class="card">
+            <div class="card-title">💬 Conversation log</div>
+            <div id="conversation-log"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL -->
 <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <div class="modal-title" id="modal-title">Add User</div>
@@ -598,7 +754,9 @@ let currentRole='cfo', uploadedFiles=[], analysisResult=null, charts={}, chartsB
 
 const API = window.location.origin;
 const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth & Strategy',manager:'Manager Level · Operational KPIs',board:'Board Pack · Governance & Risk',auditor:'Auditor Level · Compliance & Controls'};
-const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your Wallet as a Service reports'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all 42 WaaS categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'}};
+const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your Wallet as a Service reports'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all 42 WaaS categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
+    history:{title:'Report History',sub:'Track, compare and evolve your analysis over time'},
+    query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'}};
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(endpoint, method='GET', body=null) {
@@ -687,6 +845,7 @@ function gotoView(v){
   document.getElementById('new-btn').style.display=(v!=='upload'&&analysisResult)?'flex':'none';
   if(v==='trends'&&analysisResult&&!chartsBuilt)buildCharts();
   if(v==='admin'&&USER?.role==='admin'){loadUsers();}
+  if(v==='history')loadHistory();
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
@@ -738,7 +897,9 @@ async function runAnalysis(){
   clearInterval(progressTimer);
   document.getElementById('progress-fill').style.width='100%';
   document.getElementById('progress-msg').textContent='Analysis complete ✓';
-  setTimeout(()=>{document.getElementById('progress-wrap').style.display='none';btn.disabled=false;btn.innerHTML='<span>✦</span> Generate Intelligence Report';populateAll(analysisResult);gotoView('swot');document.getElementById('gap-badge').style.display='flex';toast('✦ Intelligence report generated for '+currentRole.toUpperCase());},600);
+  setTimeout(()=>{document.getElementById('progress-wrap').style.display='none';btn.disabled=false;btn.innerHTML='<span>✦</span> Generate Intelligence Report';populateAll(analysisResult);gotoView('swot');document.getElementById('gap-badge').style.display='flex';toast('✦ Intelligence report generated for '+currentRole.toUpperCase());
+      const fname = uploadedFiles.length>0?uploadedFiles.map(f=>f.name).join(', '):'Manual analysis';
+      saveToHistory(analysisResult, fname);},600);
 }
 
 // ── Populate ──────────────────────────────────────────────────────────────────
@@ -1234,6 +1395,406 @@ async function loadAccessMap(){
           <div style="font-size:11px;color:var(--gray-400)">${r.description||''}</div>
         </div>`).join('')}`;
   }catch(e){toast('Failed to load access map');}
+}
+
+
+// ── State additions ───────────────────────────────────────────────────────────
+let currentQueryContext = null;
+let selectedReportStyle = 'financial';
+let queryConversation = [];
+let currentHistoryRecord = null;
+
+// ── Auto-save analysis to history ─────────────────────────────────────────────
+async function saveToHistory(result, filename) {
+  try {
+    const record = await api('/api/history', 'POST', {
+      perspective: result.role,
+      filename: filename || 'Manual analysis',
+      summary: result.summary,
+      kpis: result.kpis,
+      swot: result.swot,
+      insights: result.insights,
+      recommendations: result.recommendations,
+      trends: result.trends,
+      gapChecker: result.gapChecker,
+    });
+    currentHistoryRecord = record.id;
+    toast('📚 Analysis saved to history');
+    return record.id;
+  } catch(e) { console.error('History save failed:', e.message); }
+}
+
+// ── Load history ──────────────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const records = await api('/api/history');
+    const filter = document.getElementById('hist-filter')?.value || '';
+    const filtered = filter ? records.filter(r => r.department === filter) : records;
+
+    // Populate filter
+    const depts = [...new Set(records.map(r => r.department).filter(Boolean))];
+    const sel = document.getElementById('hist-filter');
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');
+    }
+
+    // Populate query history select
+    const qsel = document.getElementById('query-history-select');
+    if (qsel) {
+      qsel.innerHTML = '<option value="">Type your own question or select a previous analysis</option>' +
+        records.slice(0,20).map(r => `<option value="${r.id||r._id}">${new Date(r.createdAt).toLocaleDateString()} — ${r.perspective?.toUpperCase()} — ${r.filename||'Analysis'}</option>`).join('');
+    }
+
+    if (filtered.length === 0) {
+      document.getElementById('history-empty').style.display = 'block';
+      document.getElementById('history-list').innerHTML = '';
+      return;
+    }
+    document.getElementById('history-empty').style.display = 'none';
+
+    document.getElementById('history-list').innerHTML = filtered.map(r => {
+      const date = new Date(r.createdAt).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const kpiPreview = (r.kpis||[]).slice(0,3).map(k => `
+        <div class="hist-kpi">
+          <div class="hist-kpi-label">${k.label}</div>
+          <div class="hist-kpi-value">${k.value} <span style="font-size:10px;font-weight:600;color:${k.positive?'var(--green)':'var(--red)'}">${k.delta}</span></div>
+        </div>`).join('');
+      return `
+        <div class="hist-card">
+          <div class="hist-header">
+            <div>
+              <div class="hist-title">${r.filename||'Analysis'}</div>
+              <div class="hist-meta">${date} · ${r.userName||'Unknown'} · ${r.department||'—'} · <span class="role-pill rp-${(r.perspective||'').toLowerCase()}" style="font-size:10px">${(r.perspective||'').toUpperCase()}</span></div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="tbl-btn" onclick="viewHistoryRecord('${r.id||r._id}')">View</button>
+              <button class="tbl-btn" onclick="loadIntoQuery('${r.id||r._id}')">Query</button>
+              <button class="tbl-btn red" onclick="deleteHistory('${r.id||r._id}')">Delete</button>
+            </div>
+          </div>
+          <div class="hist-kpis">${kpiPreview}</div>
+          <div style="font-size:12px;color:var(--gray-600);line-height:1.5">${r.summary||''}</div>
+          <div class="hist-actions">
+            <button class="tbl-btn" onclick="openNotes('${r.id||r._id}')">📝 Notes</button>
+            <button class="tbl-btn" onclick="compareSelect('${r.id||r._id}')">⚖ Compare</button>
+            <button class="tbl-btn" onclick="loadIntoQuery('${r.id||r._id}');selectReportStyleAndBuild('financial')">📊 Financial Report</button>
+            <button class="tbl-btn" onclick="loadIntoQuery('${r.id||r._id}');selectReportStyleAndBuild('management')">📋 Mgmt Accounts</button>
+            <button class="tbl-btn" onclick="loadIntoQuery('${r.id||r._id}');selectReportStyleAndBuild('board')">🏛 Board Report</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) { toast('Failed to load history: ' + e.message); }
+}
+
+async function deleteHistory(id) {
+  if (!confirm('Delete this analysis record?')) return;
+  try { await api('/api/history/' + id, 'DELETE'); loadHistory(); toast('Record deleted'); }
+  catch(e) { toast('Error: ' + e.message); }
+}
+
+async function viewHistoryRecord(id) {
+  try {
+    const record = await api('/api/history/' + id);
+    analysisResult = record;
+    populateAll(record);
+    gotoView('swot');
+    toast('Analysis loaded from history');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function loadIntoQuery(id) {
+  try {
+    const record = await api('/api/history/' + id);
+    currentQueryContext = record;
+    gotoView('query');
+    document.getElementById('query-context-preview').style.display = 'block';
+    document.getElementById('query-context-preview').textContent = `Loaded: ${record.filename||'Analysis'} (${new Date(record.createdAt).toLocaleDateString()}) — ${record.summary?.slice(0,120)||''}...`;
+    const sel = document.getElementById('query-history-select');
+    if (sel) sel.value = id;
+    toast('Analysis loaded into Query Engine');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+function loadQueryContext() {
+  const id = document.getElementById('query-history-select').value;
+  if (id) loadIntoQuery(id);
+  else { currentQueryContext = null; document.getElementById('query-context-preview').style.display='none'; }
+}
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+async function openNotes(id) {
+  document.getElementById('modal-title').textContent = 'Notes & decision log';
+  document.getElementById('modal-sub').textContent = 'Add notes, actions taken, or decisions made based on this analysis.';
+  document.getElementById('modal-error').style.display = 'none';
+  const notes = await api('/api/history/' + id + '/notes');
+  document.getElementById('modal-body').innerHTML = `
+    <div id="notes-list" style="margin-bottom:14px;max-height:200px;overflow-y:auto">
+      ${notes.length === 0 ? '<div style="font-size:12px;color:var(--gray-400);text-align:center;padding:20px">No notes yet — add the first one below.</div>' :
+        notes.map(n => `<div class="note-item">
+          <div class="note-avatar">${(n.userName||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+          <div class="note-body">
+            <div class="note-author">${n.userName||'Unknown'}</div>
+            <div class="note-text">${n.text}</div>
+            <div class="note-time">${new Date(n.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <textarea id="new-note" style="width:100%;min-height:70px;font-size:13px;padding:10px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit;resize:vertical;outline:none" placeholder="Add a note, action taken, or decision made..."></textarea>`;
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn-secondary" onclick="closeModal()">Close</button>
+    <button class="btn-primary" style="width:auto;padding:9px 20px" onclick="addNote('${id}')">Add note</button>`;
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function addNote(id) {
+  const text = document.getElementById('new-note').value.trim();
+  if (!text) return;
+  try {
+    await api('/api/history/' + id + '/notes', 'POST', { text });
+    closeModal();
+    toast('✅ Note saved');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+let compareIds = [];
+function compareSelect(id) {
+  compareIds.push(id);
+  if (compareIds.length === 1) { toast('Select one more record to compare — click Compare on another record'); return; }
+  if (compareIds.length >= 2) { openCompareView(compareIds[0], compareIds[1]); compareIds = []; }
+}
+
+function openCompare() {
+  toast('Click "Compare" on any two records in the history list to compare them side by side');
+}
+
+async function openCompareView(id1, id2) {
+  try {
+    const data = await api(`/api/history/compare/${id1}/${id2}`);
+    const { a, b } = data;
+    document.getElementById('modal-title').textContent = 'Side-by-side comparison';
+    document.getElementById('modal-sub').textContent = `${new Date(a.createdAt).toLocaleDateString()} vs ${new Date(b.createdAt).toLocaleDateString()}`;
+    document.getElementById('modal-error').style.display = 'none';
+    const kpiCompare = (a.kpis||[]).map((k,i) => {
+      const bk = (b.kpis||[])[i];
+      return `<tr><td style="font-size:11px;color:var(--gray-600)">${k.label}</td><td style="font-weight:700;color:var(--navy)">${k.value}</td><td style="font-weight:700;color:var(--navy)">${bk?.value||'—'}</td></tr>`;
+    }).join('');
+    document.getElementById('modal-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="background:var(--blue-light);border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;font-weight:700;color:var(--blue)">Analysis A</div>
+          <div style="font-size:12px;color:var(--navy);margin-top:3px">${a.filename||'Analysis'}</div>
+          <div style="font-size:10px;color:var(--gray-400)">${new Date(a.createdAt).toLocaleDateString()}</div>
+        </div>
+        <div style="background:#EAF3DE;border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;font-weight:700;color:var(--green)">Analysis B</div>
+          <div style="font-size:12px;color:var(--navy);margin-top:3px">${b.filename||'Analysis'}</div>
+          <div style="font-size:10px;color:var(--gray-400)">${new Date(b.createdAt).toLocaleDateString()}</div>
+        </div>
+      </div>
+      <table class="admin-table"><thead><tr><th>Metric</th><th>A</th><th>B</th></tr></thead><tbody>${kpiCompare}</tbody></table>
+      <div style="margin-top:14px;font-size:12px">
+        <div style="font-weight:700;color:var(--navy);margin-bottom:6px">Summary A</div>
+        <div style="color:var(--gray-600);margin-bottom:12px">${a.summary||'—'}</div>
+        <div style="font-weight:700;color:var(--navy);margin-bottom:6px">Summary B</div>
+        <div style="color:var(--gray-600)">${b.summary||'—'}</div>
+      </div>`;
+    document.getElementById('modal-footer').innerHTML = `<button class="btn-secondary" onclick="closeModal()">Close</button>`;
+    document.getElementById('modal-overlay').style.display = 'flex';
+  } catch(e) { toast('Compare error: ' + e.message); }
+}
+
+// ── Query Engine ──────────────────────────────────────────────────────────────
+function setQuery(q) { document.getElementById('query-input').value = q; }
+function selectReportStyle(el, style) {
+  document.querySelectorAll('#view-query .role-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  selectedReportStyle = style;
+}
+function selectReportStyleAndBuild(style) {
+  selectedReportStyle = style;
+  gotoView('query');
+  setTimeout(() => buildStructuredReport(), 300);
+}
+
+const REPORT_STYLE_PROMPTS = {
+  financial: `Format this as a professional FINANCIAL REPORT with:
+    - Executive Summary section
+    - Key Financial Metrics table (with KES amounts, % changes, variance)
+    - Revenue Analysis section
+    - Cost & Liability section  
+    - Risk Flags section
+    - Recommendations numbered list
+    Use formal financial language. Include KES figures prominently. Use markdown tables.`,
+  management: `Format this as MANAGEMENT ACCOUNTS with:
+    - Period summary
+    - KPI Dashboard table
+    - Performance vs Target analysis
+    - Variance commentary (what changed and why)
+    - Departmental highlights
+    - Action items for next period
+    Use management accounting style. Include month-on-month comparisons.`,
+  board: `Format this as a BOARD REPORT with:
+    - Chairperson's summary (2 paragraphs, plain language)
+    - Strategic KPIs table
+    - Risk Register (top 5 risks, likelihood, impact, mitigation)
+    - Strategic recommendations (numbered, prioritized)
+    - Items requiring board decision
+    Use non-technical language suitable for board members.`,
+  audit: `Format this as an INTERNAL AUDIT REPORT with:
+    - Audit scope and objectives
+    - Executive summary of findings
+    - Findings table (ref, finding, risk level, recommendation)
+    - Compliance status summary
+    - Management action plan
+    Use formal audit language. Include risk ratings (High/Medium/Low).`,
+  dashboard: `Format this as a DASHBOARD REPORT with:
+    - Key metrics in a clear table with trend indicators
+    - Traffic light status (🟢🟡🔴) for each KPI
+    - Top 3 wins this period
+    - Top 3 concerns this period
+    - Next 30 days priorities
+    Use concise bullet points. Include emoji indicators for quick scanning.`,
+  investor: `Format this as an INVESTOR BRIEF with:
+    - Business performance headline
+    - Growth metrics and trajectory
+    - Market opportunity indicators
+    - Key risks and mitigations
+    - Forward outlook (3 months)
+    Use investor-friendly language focused on growth and returns.`
+};
+
+async function runQuery() {
+  const question = document.getElementById('query-input').value.trim();
+  if (!question) { toast('Enter a question first'); return; }
+  const btn = document.getElementById('query-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Thinking...';
+
+  const contextData = currentQueryContext || analysisResult;
+  const contextText = contextData ? `
+ANALYSIS CONTEXT:
+Summary: ${contextData.summary||''}
+KPIs: ${(contextData.kpis||[]).map(k=>`${k.label}: ${k.value} (${k.delta})`).join(', ')}
+Strengths: ${(contextData.swot?.strengths||[]).join('; ')}
+Weaknesses: ${(contextData.swot?.weaknesses||[]).join('; ')}
+Opportunities: ${(contextData.swot?.opportunities||[]).join('; ')}
+Threats: ${(contextData.swot?.threats||[]).join('; ')}
+Insights: ${(contextData.insights||[]).map(i=>`${i.title}: ${i.body}`).join(' | ')}
+Recommendations: ${(contextData.recommendations||[]).join('; ')}
+` : 'No specific analysis context loaded — answer based on general Wallet as a Service financial intelligence.';
+
+  const conversationHistory = queryConversation.map(m => ({role:m.role, content:m.content}));
+
+  const messages = [
+    ...conversationHistory,
+    { role: 'user', content: `${contextText}
+
+QUESTION: ${question}
+
+Provide a detailed, specific, actionable response. Use markdown formatting with headers, bullet points and tables where appropriate.` }
+  ];
+
+  queryConversation.push({ role: 'user', content: question });
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages })
+    });
+    const data = await resp.json();
+    const answer = (data.content||[]).map(b=>b.text||'').join('');
+    queryConversation.push({ role: 'assistant', content: answer });
+    displayQueryOutput(question, answer);
+    document.getElementById('query-input').value = '';
+  } catch(e) {
+    toast('Query failed: ' + e.message);
+  }
+  btn.disabled = false; btn.innerHTML = '<span>✦</span> Ask the AI';
+}
+
+async function buildStructuredReport() {
+  const contextData = currentQueryContext || analysisResult;
+  if (!contextData) { toast('Load an analysis first — either run a new one or select from history'); return; }
+
+  const btn = document.getElementById('build-report-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Building report...';
+
+  const stylePrompt = REPORT_STYLE_PROMPTS[selectedReportStyle] || REPORT_STYLE_PROMPTS.financial;
+  const prompt = `You are a professional financial analyst and report writer for SARE Analytics.
+
+${stylePrompt}
+
+DATA TO REPORT ON:
+Summary: ${contextData.summary||''}
+KPIs: ${(contextData.kpis||[]).map(k=>`${k.label}: ${k.value} (${k.delta})`).join(', ')}
+Strengths: ${(contextData.swot?.strengths||[]).join('; ')}
+Weaknesses: ${(contextData.swot?.weaknesses||[]).join('; ')}
+Opportunities: ${(contextData.swot?.opportunities||[]).join('; ')}
+Threats: ${(contextData.swot?.threats||[]).join('; ')}
+Key insights: ${(contextData.insights||[]).map(i=>`${i.title}: ${i.body}`).join(' | ')}
+Recommendations: ${(contextData.recommendations||[]).join('; ')}
+
+Generate the complete report now. Use markdown. Be specific with numbers from the data.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await resp.json();
+    const report = (data.content||[]).map(b=>b.text||'').join('');
+    const styleLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
+    displayQueryOutput(styleLabels[selectedReportStyle]||'Report', report, true);
+  } catch(e) { toast('Report build failed: ' + e.message); }
+  btn.disabled = false; btn.innerHTML = '<span>📄</span> Build Report';
+}
+
+function markdownToHtml(text) {
+  if (!text) return '';
+  let h = text;
+  h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/^- (.+)$/gm, '<li style="margin:3px 0">$1</li>');
+  h = h.replace(/^\d+\. (.+)$/gm, '<li style="margin:3px 0">$1</li>');
+  h = h.replace(/(<li[^>]*>.*<\/li>\n?)+/g, function(m){ return '<ul style="padding-left:20px;margin:8px 0">'+m+'</ul>'; });
+  h = h.replace(/\n\n/g, '<br><br>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
+
+function displayQueryOutput(question, answer, isReport=false) {
+  document.getElementById('query-output').style.display = 'block';
+  document.getElementById('query-output-title').textContent = isReport ? '📄 Structured Report' : '💬 AI Response';
+  let html = markdownToHtml(answer);
+  document.getElementById('query-response').innerHTML = '<div class="structured-report">' + html + '</div>';
+
+  document.getElementById('query-conversation').style.display = 'block';
+  document.getElementById('conversation-log').innerHTML = queryConversation.map(m => `
+    <div class="query-msg ${m.role==='user'?'user':'ai'}">
+      <strong>${m.role==='user'?'You':'SARE AI'}:</strong> ${m.content.slice(0,200)}${m.content.length>200?'...':''}
+    </div>`).join('');
+  document.getElementById('query-output').scrollIntoView({ behavior:'smooth' });
+}
+
+function exportQueryOutput() {
+  const content = document.getElementById('query-response')?.innerText || '';
+  if (!content) { toast('Nothing to export'); return; }
+  const blob = new Blob([content], { type:'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `SARE_Report_${selectedReportStyle}_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  toast('Report exported');
+}
+
+function saveQueryToHistory() {
+  toast('Query saved to conversation log');
 }
 
 // ── Test email ───────────────────────────────────────────────────────────────
