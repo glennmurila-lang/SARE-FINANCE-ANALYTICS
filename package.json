@@ -1,7 +1,7 @@
 {
   "name": "sare-analytics-intelligence",
-  "version": "1.0.0",
-  "description": "SARE Analytics Intelligence Platform v4 \u2014 Make Cents Make Sense",
+  "version": "5.0.0",
+  "description": "SARE Analytics v5 \u2014 History, Query Engine, Structured Reports",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
