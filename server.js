@@ -365,7 +365,7 @@ app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
-app.get('/api/health', (req,res) => res.json({ status:'ok', version:'4.0.0', emailEnabled:!!resend }));
+app.get('/api/health', (req,res) => res.json({ status:'ok', version:'6.0.0', emailEnabled:!!resend, features:['history','scheduling','query'] }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, () => console.log(`SARE Analytics v4 running on http://localhost:${PORT} | Email: ${resend?'enabled':'disabled (set RESEND_API_KEY)'}`));
 
