@@ -323,7 +323,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 </style>
 </head>
 <body>
-
+<!-- AUTH SCREEN -->
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-left">
@@ -385,7 +385,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 
 <!-- APP SCREEN -->
 <div id="app-screen">
-  <nav class="sidebar">
+<nav class="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-wrap">
         <div class="sidebar-logo-mark">S</div>
@@ -432,18 +432,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
       </div>
     </div>
   </nav>
-
   <div class="main-content">
     <div class="topbar">
-      <div><div class="page-title" id="page-title">Upload & Analyse</div><div class="page-sub" id="page-sub">Upload your Wallet as a Service reports</div></div>
+      <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your reports</div></div>
       <div class="topbar-right">
-        <button class="topbar-btn" onclick="exportAnalysis()">⬇ Export</button>
-        <button class="topbar-btn primary" id="new-btn" style="display:none" onclick="gotoView('upload')">＋ New Analysis</button>
+        <button class="topbar-btn" onclick="exportAnalysis()">&#8595; Export</button>
+        <button class="topbar-btn primary" id="new-btn" style="display:none" onclick="gotoView('upload')">+ New Analysis</button>
       </div>
     </div>
     <div class="content-body">
 
-      <!-- UPLOAD -->
       <div id="view-upload">
         <div class="card">
           <div class="card-title">🎯 Select executive audience</div>
@@ -483,7 +481,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      <!-- SWOT -->
       <div id="view-swot" style="display:none">
         <div id="swot-empty" class="empty-state"><span class="empty-icon">⊞</span><div class="empty-title">No analysis yet</div><div class="empty-state-body">Upload reports and generate an analysis first.</div></div>
         <div id="swot-content" style="display:none">
@@ -494,13 +491,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      <!-- INSIGHTS -->
       <div id="view-insights" style="display:none">
         <div id="insights-empty" class="empty-state"><span class="empty-icon">💡</span><div class="empty-title">No insights yet</div><div class="empty-state-body">Run an analysis first.</div></div>
         <div id="insights-content" style="display:none"><div class="metrics-grid" id="ins-kpi-grid"></div><div id="insights-list"></div></div>
       </div>
 
-      <!-- TRENDS -->
       <div id="view-trends" style="display:none">
         <div id="trends-empty" class="empty-state"><span class="empty-icon">📈</span><div class="empty-title">No trends yet</div><div class="empty-state-body">Run an analysis first.</div></div>
         <div id="trends-content" style="display:none">
@@ -517,7 +512,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      <!-- BUILDER -->
       <div id="view-builder" style="display:none">
         <div class="card">
           <div class="card-title">Quick reports</div>
@@ -543,7 +537,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      <!-- GAPS -->
       <div id="view-gaps" style="display:none">
         <div id="gaps-empty" class="empty-state"><span class="empty-icon">🔍</span><div class="empty-title">No gap analysis yet</div><div class="empty-state-body">Run an analysis to check your 42 standard WaaS reports.</div></div>
         <div id="gaps-content" style="display:none">
@@ -558,7 +551,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      <!-- ADMIN -->
       <div id="view-admin" style="display:none">
 
         <!-- Sub-tabs -->
@@ -650,12 +642,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-
-    </div>
-  </div>
-</div>
-
-<!-- HISTORY VIEW -->
       <div id="view-history" style="display:none">
         <div class="card" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -672,7 +658,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div id="history-list"></div>
       </div>
 
-      <!-- QUERY VIEW -->
       <div id="view-query" style="display:none">
         <div class="grid-2" style="margin-bottom:14px">
           <div class="card">
@@ -767,8 +752,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      
-      <!-- SCHEDULES VIEW -->
       <div id="view-schedules" style="display:none">
         <div class="card" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between">
@@ -785,13 +768,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div id="schedules-list"></div>
       </div>
 
-      <!-- MY REPORTS VIEW -->
       <div id="view-myreports" style="display:none">
         <div id="myreports-empty" class="empty-state"><span class="empty-icon">📤</span><div class="empty-title">No reports assigned to you</div><div class="empty-state-body">When a manager assigns you a report to submit, it will appear here.</div></div>
         <div id="myreports-list"></div>
       </div>
 
-      <!-- WORKFLOWS / SUBMISSIONS VIEW -->
       <div id="view-workflows" style="display:none">
         <div class="card" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between">
@@ -805,20 +786,25 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div id="workflows-list"></div>
       </div>
 
-<!-- MODAL -->
-<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-title" id="modal-title">Add User</div>
-    <div class="modal-sub" id="modal-sub">Fill in the details below</div>
-    <div id="modal-error" class="error-box" style="display:none"></div>
-    <div id="modal-body"></div>
-    <div class="modal-footer" id="modal-footer"></div>
-  </div>
-</div>
+      <!-- MODAL -->
+      <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-title" id="modal-title">Title</div>
+          <div class="modal-sub" id="modal-sub"></div>
+          <div id="modal-error" class="error-box" style="display:none"></div>
+          <div id="modal-body"></div>
+          <div class="modal-footer" id="modal-footer"></div>
+        </div>
+      </div>
+
+    </div><!-- /content-body -->
+  </div><!-- /main-content -->
+</div><!-- /app-screen -->
 
 <div class="toast" id="toast" style="display:none"></div>
 
 <script>
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let TOKEN = localStorage.getItem('sare_token')||'';
 let USER = JSON.parse(localStorage.getItem('sare_user')||'null');
@@ -2227,6 +2213,7 @@ async function testEmail(){
     doLogout();
   }
 })();
+
 </script>
 </body>
 </html>
