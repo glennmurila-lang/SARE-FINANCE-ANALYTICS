@@ -437,3 +437,211 @@ app.get('/api/history/compare/:id1/:id2', auth, async (req,res) => {
     res.json({ a: { ...a, id: a._id }, b: { ...b, id: b._id } });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// ── Report Scheduling System ───────────────────────────────────────────────────
+const schedulesDb    = Datastore.create({ filename: path.join(__dirname, 'data', 'schedules.db'),    autoload: true });
+const submissionsDb  = Datastore.create({ filename: path.join(__dirname, 'data', 'submissions.db'),  autoload: true });
+
+// ── Schedule CRUD ─────────────────────────────────────────────────────────────
+app.get('/api/schedules', auth, async (req,res) => {
+  try {
+    const isExec = ['executive'].includes(req.user.accessLevel) || req.user.role === 'admin';
+    const isSenior = ['senior','manager'].includes(req.user.accessLevel);
+    let query = {};
+    if (!isExec) {
+      // Non-exec: see schedules they own or are reviewer on, or their dept
+      query = { $or: [{ ownerId: req.user.id }, { reviewerIds: req.user.id }, { department: req.user.department }] };
+    }
+    const schedules = await schedulesDb.find(query).sort({ nextDue: 1 });
+    res.json(schedules.map(s => ({ ...s, id: s._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/schedules', auth, async (req,res) => {
+  try {
+    const allowed = ['executive','senior','manager'].includes(req.user.accessLevel) || req.user.role === 'admin';
+    if (!allowed) return res.status(403).json({ error: 'Senior role or above required to create schedules' });
+    const { title, description, reportType, frequency, firstDueDate, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective } = req.body;
+    if (!title || !firstDueDate || !ownerId) return res.status(400).json({ error: 'Title, due date and owner required' });
+    const schedule = await schedulesDb.insert({
+      title, description: description||'', reportType: reportType||'financial',
+      frequency, firstDueDate: new Date(firstDueDate),
+      nextDue: new Date(firstDueDate),
+      ownerId, ownerName, ownerEmail,
+      reviewerIds: reviewerIds||[], department: department||req.user.department,
+      perspective: perspective||'cfo',
+      createdBy: req.user.id, createdByName: req.user.name,
+      active: true, createdAt: new Date()
+    });
+    // Send notification to owner
+    await sendEmail(ownerEmail,
+      `Action required: ${title} is due ${new Date(firstDueDate).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
+      scheduleNotificationEmail(ownerName, title, description||'', new Date(firstDueDate), reportType||'financial', schedule._id)
+    );
+    res.json({ ...schedule, id: schedule._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/schedules/:id', auth, async (req,res) => {
+  try {
+    const { title, description, reportType, frequency, nextDue, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } = req.body;
+    await schedulesDb.update({ _id: req.params.id }, { $set: { title, description, reportType, frequency, nextDue: nextDue ? new Date(nextDue) : undefined, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/schedules/:id', auth, async (req,res) => {
+  try {
+    await schedulesDb.remove({ _id: req.params.id });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Submissions ───────────────────────────────────────────────────────────────
+app.get('/api/submissions', auth, async (req,res) => {
+  try {
+    const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
+    const query = isExec ? {} : { $or: [{ submittedById: req.user.id }, { department: req.user.department }] };
+    const subs = await submissionsDb.find(query).sort({ createdAt: -1 });
+    res.json(subs.map(s => ({ ...s, id: s._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/submissions/pending', auth, async (req,res) => {
+  try {
+    // Reports where this user is the owner and not yet submitted for this period
+    const mySchedules = await schedulesDb.find({ ownerId: req.user.id, active: true });
+    const now = new Date();
+    const pending = mySchedules.filter(s => new Date(s.nextDue) <= new Date(now.getTime() + 3*24*60*60*1000));
+    res.json(pending.map(s => ({ ...s, id: s._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
+  try {
+    const { scheduleId, notes } = req.body;
+    const schedule = await schedulesDb.findOne({ _id: scheduleId });
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+    // Parse the uploaded file
+    let reportText = '';
+    if (req.file) {
+      if (req.file.originalname.endsWith('.csv')) {
+        reportText = req.file.buffer.toString('utf8').slice(0, 6000);
+      } else {
+        const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+        wb.SheetNames.forEach(sn => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 });
+          reportText += `SHEET: ${sn}\n`;
+          rows.slice(0, 100).forEach(r => { reportText += r.join('\t') + '\n'; });
+        });
+        reportText = reportText.slice(0, 6000);
+      }
+    }
+    const submission = await submissionsDb.insert({
+      scheduleId, scheduleTitle: schedule.title,
+      submittedById: req.user.id, submittedByName: req.user.name,
+      department: req.user.department,
+      filename: req.file?.originalname || 'Manual submission',
+      notes: notes||'', reportText,
+      status: 'submitted', createdAt: new Date()
+    });
+    // Update next due date
+    const nextDue = calcNextDue(schedule.frequency, new Date(schedule.nextDue));
+    await schedulesDb.update({ _id: scheduleId }, { $set: { nextDue, lastSubmitted: new Date() } });
+    // Notify reviewers
+    const reviewerUsers = await db.find({ _id: { $in: schedule.reviewerIds||[] } });
+    for (const reviewer of reviewerUsers) {
+      await sendEmail(reviewer.email,
+        `Report submitted: ${schedule.title} — insights ready`,
+        submissionNotificationEmail(reviewer.name, schedule.title, req.user.name, submission._id, schedule.reportType)
+      );
+    }
+    res.json({ ...submission, id: submission._id, reportText: undefined });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/submissions/:id', auth, async (req,res) => {
+  try {
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...sub, id: sub._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Send reminder manually ────────────────────────────────────────────────────
+app.post('/api/schedules/:id/remind', auth, async (req,res) => {
+  try {
+    const schedule = await schedulesDb.findOne({ _id: req.params.id });
+    if (!schedule) return res.status(404).json({ error: 'Not found' });
+    await sendEmail(schedule.ownerEmail,
+      `Reminder: ${schedule.title} is due ${new Date(schedule.nextDue).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
+      scheduleNotificationEmail(schedule.ownerName, schedule.title, schedule.description, new Date(schedule.nextDue), schedule.reportType, schedule._id)
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Helper: calculate next due date ──────────────────────────────────────────
+function calcNextDue(frequency, from) {
+  const d = new Date(from);
+  switch(frequency) {
+    case 'daily':     d.setDate(d.getDate() + 1); break;
+    case 'weekly':    d.setDate(d.getDate() + 7); break;
+    case 'monthly':   d.setMonth(d.getMonth() + 1); break;
+    case 'quarterly': d.setMonth(d.getMonth() + 3); break;
+    case 'annually':  d.setFullYear(d.getFullYear() + 1); break;
+    default:          d.setMonth(d.getMonth() + 1);
+  }
+  return d;
+}
+
+// ── Email templates for scheduling ───────────────────────────────────────────
+function scheduleNotificationEmail(ownerName, title, description, dueDate, reportType, scheduleId) {
+  const due = dueDate.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
+  return emailBase(`
+    <div class="greeting">Report submission required 📋</div>
+    <p class="text">Hi ${ownerName}, you have been assigned as the report owner for the following report. Please submit it by the due date.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${title}</span></div>
+      <div class="cred-row"><span class="cred-label">Type</span><span class="cred-value">${typeLabels[reportType]||reportType}</span></div>
+      <div class="cred-row"><span class="cred-label">Due date</span><span class="cred-value">${due}</span></div>
+      ${description ? `<div class="cred-row"><span class="cred-label">Description</span><span class="cred-value">${description}</span></div>` : ''}
+    </div>
+    <a href="${APP_URL}" class="btn">Log in to submit your report →</a>
+    <div class="notice">📎 Log in to SARE Analytics, go to "My Reports" in the sidebar, and upload your Excel or CSV file for this report period.</div>`);
+}
+
+function submissionNotificationEmail(reviewerName, reportTitle, submitterName, submissionId, reportType) {
+  const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
+  return emailBase(`
+    <div class="greeting">Report submitted — insights ready 📊</div>
+    <p class="text">Hi ${reviewerName}, <strong>${submitterName}</strong> has submitted the <strong>${reportTitle}</strong>. SARE Analytics has automatically generated your ${typeLabels[reportType]||'executive'} insights.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${reportTitle}</span></div>
+      <div class="cred-row"><span class="cred-label">Submitted by</span><span class="cred-value">${submitterName}</span></div>
+      <div class="cred-row"><span class="cred-label">Report style</span><span class="cred-value">${typeLabels[reportType]||reportType}</span></div>
+    </div>
+    <a href="${APP_URL}" class="btn">View insights in SARE Analytics →</a>
+    <div class="notice">💡 Log in to SARE Analytics and go to "Report Workflows" to view the full AI-generated analysis of this submission.</div>`);
+}
+
+// ── Auto-reminder check (runs on server start and every hour) ─────────────────
+async function checkDueReminders() {
+  try {
+    const now = new Date();
+    const in3days = new Date(now.getTime() + 3*24*60*60*1000);
+    const dueSoon = await schedulesDb.find({ active: true, nextDue: { $lte: in3days } });
+    for (const s of dueSoon) {
+      const daysUntil = Math.ceil((new Date(s.nextDue) - now) / (1000*60*60*24));
+      if ([3,1,0].includes(daysUntil)) {
+        await sendEmail(s.ownerEmail,
+          `${daysUntil === 0 ? 'DUE TODAY' : `Due in ${daysUntil} day${daysUntil>1?'s':''}`}: ${s.title}`,
+          scheduleNotificationEmail(s.ownerName, s.title, s.description, new Date(s.nextDue), s.reportType, s._id)
+        );
+      }
+    }
+  } catch(e) { console.error('Reminder check error:', e.message); }
+}
+setTimeout(checkDueReminders, 5000);
+setInterval(checkDueReminders, 60*60*1000);
