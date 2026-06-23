@@ -7,76 +7,155 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const fs = require('fs');
+const Datastore = require('nedb-promises');
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'sare-analytics-secret-key-2024-waas';
 const PORT = process.env.PORT || 3000;
 
-// ── Security middleware ──────────────────────────────────────────────────────
+// ── Database setup ────────────────────────────────────────────────────────────
+const db = Datastore.create({ filename: path.join(__dirname, 'data', 'users.db'), autoload: true });
+
+// Ensure data directory exists
+const fs = require('fs');
+if (!fs.existsSync(path.join(__dirname, 'data'))) {
+  fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+}
+
+// Seed default admin users if DB is empty
+async function seedUsers() {
+  const count = await db.count({});
+  if (count === 0) {
+    const users = [
+      { name: 'Admin User', email: 'admin@sare.co.ke', password: bcrypt.hashSync('Sare@2024!', 10), role: 'admin', org: 'SARE Analytics', active: true, createdAt: new Date() },
+      { name: 'CFO Demo', email: 'cfo@demo.com', password: bcrypt.hashSync('Demo@1234', 10), role: 'cfo', org: 'Demo Organisation', active: true, createdAt: new Date() },
+      { name: 'CEO Demo', email: 'ceo@demo.com', password: bcrypt.hashSync('Demo@1234', 10), role: 'ceo', org: 'Demo Organisation', active: true, createdAt: new Date() },
+    ];
+    for (const u of users) await db.insert(u);
+    console.log('Default users seeded');
+  }
+}
+seedUsers();
+
+// ── Middleware ────────────────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 300 }));
 
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, message: { error: 'Too many requests' } });
-app.use('/api/', limiter);
-
-// ── In-memory user store (replace with DB in production) ────────────────────
-const users = [
-  { id: 1, name: 'Admin User', email: 'admin@sare.co.ke', password: bcrypt.hashSync('Sare@2024!', 10), role: 'admin', org: 'SARE Analytics' },
-  { id: 2, name: 'CFO Demo', email: 'cfo@demo.com', password: bcrypt.hashSync('Demo@1234', 10), role: 'cfo', org: 'Demo Organisation' },
-  { id: 3, name: 'CEO Demo', email: 'ceo@demo.com', password: bcrypt.hashSync('Demo@1234', 10), role: 'ceo', org: 'Demo Organisation' },
-];
-let nextUserId = 4;
-const sessions = {};
-
-// ── File upload ──────────────────────────────────────────────────────────────
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['.xlsx', '.xls', '.csv'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
-  }
-});
-
-// ── Auth middleware ──────────────────────────────────────────────────────────
+// ── Auth middleware ───────────────────────────────────────────────────────────
 function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token' });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch { res.status(401).json({ error: 'Invalid token' }); }
+  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
+  catch { res.status(401).json({ error: 'Invalid or expired token' }); }
 }
 
-// ── Auth routes ──────────────────────────────────────────────────────────────
+function adminOnly(req, res, next) {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  next();
+}
+
+// ── Auth routes ───────────────────────────────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (!user || !bcrypt.compareSync(password, user.password))
-    return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, org: user.org }, JWT_SECRET, { expiresIn: '8h' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, org: user.org } });
+  try {
+    const { email, password } = req.body;
+    const user = await db.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+    if (!user || !bcrypt.compareSync(password, user.password))
+      return res.status(401).json({ error: 'Invalid email or password' });
+    if (!user.active)
+      return res.status(403).json({ error: 'Account disabled. Contact your admin.' });
+    const token = jwt.sign(
+      { id: user._id, email: user.email, name: user.name, role: user.role, org: user.org },
+      JWT_SECRET, { expiresIn: '8h' }
+    );
+    await db.update({ _id: user._id }, { $set: { lastLogin: new Date() } });
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, org: user.org } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, org, inviteCode } = req.body;
-  if (inviteCode !== 'SARE2024') return res.status(403).json({ error: 'Invalid invite code' });
-  if (users.find(u => u.email.toLowerCase() === email.toLowerCase()))
-    return res.status(409).json({ error: 'Email already registered' });
-  const hashed = bcrypt.hashSync(password, 10);
-  const user = { id: nextUserId++, name, email, password: hashed, role: 'analyst', org: org || 'My Organisation' };
-  users.push(user);
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, org: user.org }, JWT_SECRET, { expiresIn: '8h' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, org: user.org } });
+  try {
+    const { name, email, password, org, inviteCode } = req.body;
+    if (inviteCode !== (process.env.INVITE_CODE || 'SARE2024'))
+      return res.status(403).json({ error: 'Invalid invite code. Contact your SARE admin.' });
+    if (!name || !email || !password)
+      return res.status(400).json({ error: 'Name, email and password are required' });
+    if (password.length < 8)
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const existing = await db.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+    if (existing) return res.status(409).json({ error: 'Email already registered' });
+    const user = await db.insert({
+      name, email: email.toLowerCase(), password: bcrypt.hashSync(password, 10),
+      role: 'analyst', org: org || 'My Organisation', active: true, createdAt: new Date()
+    });
+    const token = jwt.sign(
+      { id: user._id, email: user.email, name: user.name, role: user.role, org: user.org },
+      JWT_SECRET, { expiresIn: '8h' }
+    );
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, org: user.org } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/auth/me', auth, (req, res) => res.json(req.user));
 
-// ── File parse route ─────────────────────────────────────────────────────────
+// ── Password change ───────────────────────────────────────────────────────────
+app.post('/api/auth/change-password', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (newPassword.length < 8)
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    const user = await db.findOne({ _id: req.user.id });
+    if (!user || !bcrypt.compareSync(currentPassword, user.password))
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    await db.update({ _id: req.user.id }, { $set: { password: bcrypt.hashSync(newPassword, 10) } });
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: user management ────────────────────────────────────────────────────
+app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
+  try {
+    const users = await db.find({}, { password: 0 });
+    res.json(users.map(u => ({ ...u, id: u._id })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/users', auth, adminOnly, async (req, res) => {
+  try {
+    const { name, email, password, role, org } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, password required' });
+    const existing = await db.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+    if (existing) return res.status(409).json({ error: 'Email already exists' });
+    const user = await db.insert({
+      name, email: email.toLowerCase(), password: bcrypt.hashSync(password, 10),
+      role: role || 'analyst', org: org || 'My Organisation', active: true, createdAt: new Date()
+    });
+    res.json({ ...user, id: user._id, password: undefined });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { name, email, role, org, active, password } = req.body;
+    const update = { name, email: email?.toLowerCase(), role, org, active };
+    if (password && password.length >= 8) update.password = bcrypt.hashSync(password, 10);
+    await db.update({ _id: req.params.id }, { $set: update });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) return res.status(400).json({ error: "Can't delete yourself" });
+    await db.remove({ _id: req.params.id });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── File parse ────────────────────────────────────────────────────────────────
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 app.post('/api/parse', auth, upload.array('files', 10), (req, res) => {
   try {
     const results = [];
@@ -98,11 +177,7 @@ app.post('/api/parse', auth, upload.array('files', 10), (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Health ───────────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '1.0.0', service: 'SARE Analytics Intelligence' }));
-
-// ── Serve frontend for all other routes ─────────────────────────────────────
+app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '2.0.0', service: 'SARE Analytics Intelligence' }));
 app.get('/{*path}', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => console.log(`SARE Analytics running on http://localhost:${PORT}`));
-module.exports = app;
+app.listen(PORT, () => console.log(`SARE Analytics v2 running on http://localhost:${PORT}`));
