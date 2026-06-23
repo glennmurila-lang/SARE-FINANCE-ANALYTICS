@@ -1,7 +1,7 @@
 {
   "name": "sare-analytics-intelligence",
   "version": "1.0.0",
-  "description": "SARE Analytics Intelligence Platform \u2014 Wallet as a Service Executive Reporting Suite",
+  "description": "SARE Analytics Intelligence Platform v4 \u2014 Make Cents Make Sense",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -20,6 +20,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "nedb-promises": "*",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "resend": "^3.0.0"
   }
 }
