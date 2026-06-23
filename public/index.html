@@ -564,6 +564,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
           <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:4px">Self-registration invite code</div>
           <div style="font-size:22px;font-weight:700;color:var(--navy);letter-spacing:0.12em">SARE2024</div>
           <div style="font-size:11px;color:#1E40AF;margin-top:4px">Share this privately with people you want to allow to register themselves. They choose their own password.</div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #BFDBFE">
+            <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:8px">Email system</div>
+            <div style="font-size:12px;color:#1E40AF;margin-bottom:10px">Emails are sent automatically when you add users, reset passwords, or change account status. Set your <strong>RESEND_API_KEY</strong> in Render environment variables to enable.</div>
+            <button class="tbl-btn" onclick="testEmail()" style="background:#1B6FE4;color:#fff;border-color:#1B6FE4;font-weight:600">Send test email to me</button>
+          </div>
         </div>
       </div>
 
@@ -835,8 +840,9 @@ function openAddUser(){
 async function submitAddUser(){
   document.getElementById('modal-error').style.display='none';
   try{
+    const sendEmail = document.getElementById('m-sendemail')?.checked !== false;
     await api('/api/admin/users','POST',{name:document.getElementById('m-name').value.trim(),email:document.getElementById('m-email').value.trim(),org:document.getElementById('m-org').value.trim(),password:document.getElementById('m-pass').value,role:document.getElementById('m-role').value});
-    closeModal();loadUsers();toast('✅ User added successfully');
+    closeModal();loadUsers();toast(sendEmail?'✅ User added — welcome email sent':'✅ User added');
   }catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
 }
 
@@ -963,6 +969,7 @@ async function openAddUser(){
         <option value="analyst" selected>Analyst — reports only</option>
       </select>
     </div>`;
+  document.getElementById('modal-body').innerHTML += `<div class="form-group" style="display:flex;align-items:center;gap:10px;background:#F0FDF9;padding:10px 12px;border-radius:8px;border:1px solid #A7F3D0"><input type="checkbox" id="m-sendemail" checked style="width:16px;height:16px;cursor:pointer"><label for="m-sendemail" style="font-size:13px;cursor:pointer;color:#065F46">Send welcome email with login details</label></div>`;
   document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitAddUser()">Add user</button>`;
   document.getElementById('modal-overlay').style.display='flex';
   syncAccessLevel();
@@ -981,6 +988,7 @@ function syncAccessLevel(){
 async function submitAddUser(){
   document.getElementById('modal-error').style.display='none';
   try{
+    const sendEmail = document.getElementById('m-sendemail')?.checked !== false;
     await api('/api/admin/users','POST',{
       name:document.getElementById('m-name').value.trim(),
       email:document.getElementById('m-email').value.trim(),
@@ -990,7 +998,7 @@ async function submitAddUser(){
       accessLevel:document.getElementById('m-level').value,
       org:'SARE Analytics'
     });
-    closeModal();loadUsers();toast('✅ User added successfully');
+    closeModal();loadUsers();toast(sendEmail?'✅ User added — welcome email sent':'✅ User added');
   }catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
 }
 
@@ -1226,6 +1234,14 @@ async function loadAccessMap(){
           <div style="font-size:11px;color:var(--gray-400)">${r.description||''}</div>
         </div>`).join('')}`;
   }catch(e){toast('Failed to load access map');}
+}
+
+// ── Test email ───────────────────────────────────────────────────────────────
+async function testEmail(){
+  try{
+    await api('/api/admin/test-email','POST',{});
+    toast('✅ Test email sent to '+USER.email);
+  }catch(e){toast('Email error: '+e.message+' — check RESEND_API_KEY in Render');}
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
