@@ -307,6 +307,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .due-soon{background:var(--amber-light);color:var(--amber)}
 .due-ok{background:var(--green-light);color:var(--green)}
 .workflow-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.consolidation-check{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,0.1);border-radius:6px;margin-bottom:6px;font-size:12px;color:rgba(255,255,255,0.9);cursor:pointer}
+.consolidation-check:hover{background:rgba(255,255,255,0.18)}
+.consolidation-check input{width:16px;height:16px;cursor:pointer;accent-color:var(--gold)}
 .workflow-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
 .submission-status{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
 .status-submitted{background:var(--green-light);color:var(--green)}
@@ -337,7 +340,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
       <div class="auth-features">
         <div class="auth-feature"><span class="auth-feature-dot"></span>Role-based views: CFO, CEO, Manager, Board, Auditor</div>
         <div class="auth-feature"><span class="auth-feature-dot"></span>SWOT, insights, trends and gap checker in one place</div>
-        <div class="auth-feature"><span class="auth-feature-dot"></span>Upload any Excel or CSV — AI reads and interprets instantly</div>
+        <div class="auth-feature"><span class="auth-feature-dot"></span>Upload any Excel, CSV or financial report — AI reads and interprets instantly</div>
         <div class="auth-feature"><span class="auth-feature-dot"></span>Admin panel — add, edit, disable users anytime</div>
         <div class="auth-feature"><span class="auth-feature-dot"></span>Change your password anytime from the app</div>
       </div>
@@ -434,7 +437,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
   </nav>
   <div class="main-content">
     <div class="topbar">
-      <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your Wallet as a Service reports</div></div>
+      <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your business reports for AI analysis</div></div>
       <div class="topbar-right">
         <button class="topbar-btn" onclick="exportAnalysis()">&#8595; Export</button>
         <button class="topbar-btn primary" id="new-btn" style="display:none" onclick="gotoView('upload')">+ New Analysis</button>
@@ -446,9 +449,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div class="card">
           <div class="card-title">🎯 Select executive audience</div>
           <div class="role-grid">
-            <div class="role-card active" onclick="selectRole(this,'cfo')"><div class="role-emoji">💰</div><div class="role-name">CFO</div><div class="role-desc">Liquidity · Risk · P&L</div></div>
+            <div class="role-card active" onclick="selectRole(this,'cfo')"><div class="role-emoji">💰</div><div class="role-name">CFO</div><div class="role-desc">Financials · Risk · P&L</div></div>
             <div class="role-card" onclick="selectRole(this,'ceo')"><div class="role-emoji">📈</div><div class="role-name">CEO</div><div class="role-desc">Growth · Strategy</div></div>
-            <div class="role-card" onclick="selectRole(this,'manager')"><div class="role-emoji">⚙️</div><div class="role-name">Manager</div><div class="role-desc">Ops · KPIs · SLAs</div></div>
+            <div class="role-card" onclick="selectRole(this,'manager')"><div class="role-emoji">⚙️</div><div class="role-name">Manager</div><div class="role-desc">Operations · KPIs · Targets</div></div>
             <div class="role-card" onclick="selectRole(this,'board')"><div class="role-emoji">🏛️</div><div class="role-name">Board</div><div class="role-desc">Governance · Risk</div></div>
             <div class="role-card" onclick="selectRole(this,'auditor')"><div class="role-emoji">🔍</div><div class="role-name">Auditor</div><div class="role-desc">Compliance · Trails</div></div>
           </div>
@@ -458,13 +461,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
           <div id="file-chips"></div>
           <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
             <span class="drop-icon">📥</span>
-            <div class="drop-title">Drop Excel or CSV reports here</div>
-            <div class="drop-sub">.xlsx · .xls · .csv · Multiple files accepted</div>
+            <div class="drop-title">Drop your Excel or CSV reports here</div>
+            <div class="drop-sub">.xlsx · .xls · .csv · PDF summaries · Multiple files</div>
           </div>
           <input type="file" id="file-input" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleFiles(this.files)">
           <div style="margin-top:16px">
             <div class="section-label">Additional context (optional)</div>
-            <textarea id="ctx-input" style="width:100%;min-height:68px;font-size:13px;padding:10px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit;color:var(--gray-800);background:#fff;resize:vertical;outline:none" placeholder="e.g. Focus on Q2 settlement gaps, flag dormant wallet risk for CBK compliance…" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--gray-200)'"></textarea>
+            <textarea id="ctx-input" style="width:100%;min-height:68px;font-size:13px;padding:10px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit;color:var(--gray-800);background:#fff;resize:vertical;outline:none" placeholder="e.g. Focus on Q2 sales performance, flag cost overruns, prepare for board review…" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--gray-200)'"></textarea>
           </div>
           <div id="progress-wrap" style="display:none" class="progress-wrap">
             <div class="progress-msg" id="progress-msg">Initialising…</div>
@@ -475,7 +478,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div class="card" style="background:linear-gradient(135deg,#F0F7FF,#EBF2FF);border-color:#BFDBFE">
           <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:8px">How SARE works</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:#1E40AF">
-            <div>① Upload one or more financial reports</div><div>② Select your executive audience</div>
+            <div>① Upload your business reports — sales, finance, ops, HR</div><div>② Select your executive audience</div>
             <div>③ AI reads and interprets all data</div><div>④ Get SWOT · Insights · Trends · Gaps</div>
           </div>
         </div>
@@ -775,11 +778,37 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 
       <div id="view-workflows" style="display:none">
         <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
             <div class="card-title" style="margin:0">🔄 Submitted reports and insights</div>
-            <select id="workflow-filter" class="form-select" style="width:180px;padding:7px 10px;font-size:12px" onchange="loadWorkflows()">
-              <option value="">All schedules</option>
-            </select>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="workflow-filter" class="form-select" style="width:160px;padding:7px 10px;font-size:12px" onchange="loadWorkflows()">
+                <option value="">All schedules</option>
+              </select>
+              <button class="topbar-btn primary" onclick="openConsolidation()" style="white-space:nowrap">⊕ Consolidate reports</button>
+            </div>
+          </div>
+        </div>
+        <div id="consolidation-area" style="display:none">
+          <div class="card" style="background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;margin-bottom:14px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:8px">⊕ Master report consolidation</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:14px">Select reports below to combine into one master analysis. AI will merge all data into a single cross-department view.</div>
+            <div id="consolidation-checklist" style="margin-bottom:14px;max-height:200px;overflow-y:auto"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <select id="consolidation-perspective" style="padding:8px 12px;border:none;border-radius:6px;font-size:12px;background:rgba(255,255,255,0.15);color:#fff;cursor:pointer">
+                <option value="ceo">CEO Master View</option>
+                <option value="cfo">CFO Master View</option>
+                <option value="board">Board Master View</option>
+                <option value="manager">Manager Master View</option>
+              </select>
+              <select id="consolidation-style" style="padding:8px 12px;border:none;border-radius:6px;font-size:12px;background:rgba(255,255,255,0.15);color:#fff;cursor:pointer">
+                <option value="management">Management Accounts</option>
+                <option value="board">Board Report</option>
+                <option value="financial">Financial Report</option>
+                <option value="dashboard">Dashboard View</option>
+              </select>
+              <button class="analyze-btn" style="width:auto;padding:10px 20px;margin:0" id="consolidate-btn" onclick="runConsolidation()">✦ Generate master report</button>
+              <button onclick="document.getElementById('consolidation-area').style.display='none'" style="padding:8px 14px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;background:transparent;color:rgba(255,255,255,0.7);cursor:pointer;font-size:12px">Cancel</button>
+            </div>
           </div>
         </div>
         <div id="workflows-empty" class="empty-state"><span class="empty-icon">🔄</span><div class="empty-title">No submissions yet</div><div class="empty-state-body">Once report owners submit their reports, AI insights will appear here.</div></div>
@@ -812,7 +841,7 @@ let currentRole='cfo', uploadedFiles=[], analysisResult=null, charts={}, chartsB
 
 const API = window.location.origin;
 const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth & Strategy',manager:'Manager Level · Operational KPIs',board:'Board Pack · Governance & Risk',auditor:'Auditor Level · Compliance & Controls'};
-const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your Wallet as a Service reports'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all 42 WaaS categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
+const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your business reports for AI analysis'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports for any audience'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all key business categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
     history:{title:'Report History',sub:'Track, compare and evolve your analysis over time'},
     query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'},
     schedules:{title:'Report Schedules',sub:'Create and manage recurring report requests'},
@@ -953,7 +982,13 @@ async function readFile(file){
 function selectRole(el,role){document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('active'));el.classList.add('active');currentRole=role;}
 
 // ── Analysis ──────────────────────────────────────────────────────────────────
-const ROLE_FOCUS={cfo:'Focus on: financial risk, liquidity ratios, P&L, settlement gaps (KES amounts), reconciliation failures, dormant float liability, fraud/AML, regulatory capital, revenue vs cost efficiency.',ceo:'Focus on: revenue growth, customer wallet growth, product performance, market expansion signals, strategic risks, 3-point outlook, investor metrics.',manager:'Focus on: daily/weekly KPIs, transaction success/failure rates, pending escalations, SLA compliance, agent channel performance, operational bottlenecks.',board:'Focus on: top 5 risk register, compliance posture, strategic milestones, audit findings, executive narrative in plain non-technical language.',auditor:'Focus on: compliance gaps, audit trail completeness, high-value transaction patterns, dormant compliance, reconciliation discrepancies, AML indicators.'};
+const ROLE_FOCUS={
+  cfo:'Focus on: revenue vs cost efficiency, gross and net margins, P&L analysis, cash flow position, cost overruns, working capital, EBITDA, financial risk exposure, budget vs actual variance, and any anomalies in the financial data.',
+  ceo:'Focus on: overall business performance, revenue growth trajectory, market share signals, product or category performance, strategic risks and opportunities, customer trends, competitive positioning, and 3-point forward outlook.',
+  manager:'Focus on: operational KPIs, sales targets vs actuals, team or channel performance, stock or inventory levels, pending escalations, SLA compliance, daily/weekly metrics, and items requiring immediate action.',
+  board:'Focus on: top 5 business risks, strategic milestone status, compliance posture, governance concerns, high-level financial health, and executive narrative written in plain non-technical language suitable for board members.',
+  auditor:'Focus on: compliance gaps, internal control weaknesses, high-value transaction anomalies, reconciliation discrepancies, audit trail completeness, policy violations, and areas requiring investigation.'
+};
 
 async function runAnalysis(){
   const btn=document.getElementById('analyze-btn');
@@ -964,8 +999,8 @@ async function runAnalysis(){
   progressTimer=setInterval(()=>{pct=Math.min(pct+9,90);document.getElementById('progress-fill').style.width=pct+'%';document.getElementById('progress-msg').textContent=msgs[Math.floor(pct/12)]||msgs[msgs.length-1];},500);
   let dataText='';
   for(const f of uploadedFiles){dataText+=await readFile(f)+'\n\n';}
-  if(!dataText.trim())dataText='[Sample WaaS data: Wallet Liability 2.4B KES, 847K transactions, 3.2% fail rate, Revenue 18.6M KES, Settlement gap 4.1M KES, Dormant wallets 2340 growing 18%]';
-  const prompt=`You are SARE Analytics Intelligence for a Wallet as a Service platform.\nROLE: ${currentRole.toUpperCase()} — ${ROLE_FOCUS[currentRole]}\nCONTEXT: ${document.getElementById('ctx-input').value||'None.'}\nDATA:\n${dataText.slice(0,6500)}\nRespond ONLY with valid JSON, no markdown:\n{"role":"${currentRole}","summary":"2-sentence executive summary.","kpis":[{"label":"Total Wallet Liability","value":"KES 2.4B","delta":"+12.3%","positive":true},{"label":"Transaction Volume","value":"847K","delta":"+8.7%","positive":true},{"label":"Failed Txn Rate","value":"3.2%","delta":"-0.8%","positive":true},{"label":"Net Revenue","value":"KES 18.6M","delta":"+15.2%","positive":true},{"label":"Dormant Wallets","value":"2,340","delta":"+18.4%","positive":false},{"label":"Settlement Gap","value":"KES 4.1M","delta":"+32%","positive":false}],"swot":{"strengths":["s1","s2","s3","s4"],"weaknesses":["w1","w2","w3"],"opportunities":["o1","o2","o3"],"threats":["t1","t2","t3"]},"insights":[{"title":"t","body":"2-sentence insight with numbers.","type":"danger","badge":"Critical"},{"title":"t","body":"insight.","type":"warning","badge":"Watch"},{"title":"t","body":"insight.","type":"success","badge":"Good"},{"title":"t","body":"insight.","type":"info","badge":"Info"}],"recommendations":["r1","r2","r3","r4","r5"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Mobile Transfers"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["GL Report","Trial Balance","Wallet Liability Summary","Transaction Register","Revenue Summary","Commission Summary","Settlement Summary","Settlement Aging","High Value Transactions Report"],"missing":["Float Account Balance Report","Sanctions Screening Report","SAR Log","Customer Onboarding Report","API Error Report"],"warning":["Dormant Compliance Report (incomplete)","Settlement Reconciliation (partial)"]},"standardChecklist":[{"item":"All 12 WaaS categories covered","status":"warn"},{"item":"GL reconciliation present","status":"pass"},{"item":"Settlement aging attached","status":"pass"},{"item":"Dormant compliance complete","status":"fail"},{"item":"SAP batch report included","status":"fail"},{"item":"Commission reconciliation attached","status":"warn"},{"item":"Audit trail complete","status":"pass"}]}`;
+  if(!dataText.trim())dataText='[Sample business data: Revenue KES 18.6M up 12%, Cost of Goods KES 11.2M, Gross Margin 39.8%, Operating expenses KES 4.1M, Net profit KES 3.3M, Top SKU: Product A at 34% of revenue, Stock turnover 4.2x, Customer count 1,240 active accounts]';
+  const prompt=`You are SARE Analytics Intelligence — a business intelligence AI for any industry including FMCG, retail, manufacturing, services and finance.\nROLE: ${currentRole.toUpperCase()} — ${ROLE_FOCUS[currentRole]}\nCONTEXT: ${document.getElementById('ctx-input').value||'None.'}\nDATA:\n${dataText.slice(0,6500)}\nRespond ONLY with valid JSON, no markdown:\n{"role":"${currentRole}","summary":"2-sentence executive summary.","kpis":[{"label":"Total Wallet Liability","value":"KES 2.4B","delta":"+12.3%","positive":true},{"label":"Transaction Volume","value":"847K","delta":"+8.7%","positive":true},{"label":"Failed Txn Rate","value":"3.2%","delta":"-0.8%","positive":true},{"label":"Net Revenue","value":"KES 18.6M","delta":"+15.2%","positive":true},{"label":"Dormant Wallets","value":"2,340","delta":"+18.4%","positive":false},{"label":"Settlement Gap","value":"KES 4.1M","delta":"+32%","positive":false}],"swot":{"strengths":["s1","s2","s3","s4"],"weaknesses":["w1","w2","w3"],"opportunities":["o1","o2","o3"],"threats":["t1","t2","t3"]},"insights":[{"title":"t","body":"2-sentence insight with numbers.","type":"danger","badge":"Critical"},{"title":"t","body":"insight.","type":"warning","badge":"Watch"},{"title":"t","body":"insight.","type":"success","badge":"Good"},{"title":"t","body":"insight.","type":"info","badge":"Info"}],"recommendations":["r1","r2","r3","r4","r5"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Mobile Transfers"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["GL Report","Trial Balance","Wallet Liability Summary","Transaction Register","Revenue Summary","Commission Summary","Settlement Summary","Settlement Aging","High Value Transactions Report"],"missing":["Float Account Balance Report","Sanctions Screening Report","SAR Log","Customer Onboarding Report","API Error Report"],"warning":["Dormant Compliance Report (incomplete)","Settlement Reconciliation (partial)"]},"standardChecklist":[{"item":"All 12 WaaS categories covered","status":"warn"},{"item":"GL reconciliation present","status":"pass"},{"item":"Settlement aging attached","status":"pass"},{"item":"Dormant compliance complete","status":"fail"},{"item":"SAP batch report included","status":"fail"},{"item":"Commission reconciliation attached","status":"warn"},{"item":"Audit trail complete","status":"pass"}]}`;
   try{
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const data=await resp.json();
@@ -1136,7 +1171,7 @@ function exportAnalysis(){
 function toast(msg){const el=document.getElementById('toast');el.innerHTML=msg;el.style.display='flex';setTimeout(()=>{el.style.display='none';},3500);}
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
-function demoData(r){return{role:r,summary:'Wallet platform shows strong growth with KES 18.6M net revenue, up 15.2% MoM. Key risks include a widening settlement gap of KES 4.1M and dormant wallet growth of 18.4% requiring immediate regulatory attention.',kpis:[{label:'Total Wallet Liability',value:'KES 2.4B',delta:'+12.3%',positive:true},{label:'Transaction Volume',value:'847K',delta:'+8.7%',positive:true},{label:'Failed Txn Rate',value:'3.2%',delta:'-0.8%',positive:true},{label:'Net Revenue',value:'KES 18.6M',delta:'+15.2%',positive:true},{label:'Dormant Wallets',value:'2,340',delta:'+18.4%',positive:false},{label:'Settlement Gap',value:'KES 4.1M',delta:'+32%',positive:false}],swot:{strengths:['Transaction volume growing 8.7% MoM — ahead of industry 6% benchmark','Revenue efficiency improving: net revenue per transaction up 6%','Agent commission model healthy at 1.8% of transaction value within 2% ceiling','Wallet activation rate strong at 94% of registered customers'],weaknesses:['Dormant wallet ratio accelerating at 18.4% — float liability and compliance risk','Settlement gap of KES 4.1M growing 32% — approaching CBK reporting threshold','Failed transaction rate at 3.2% above industry 2% benchmark'],opportunities:['Agent expansion into tier-2 markets with 340 merchants in onboarding pipeline','Float investment yield potential: KES 800K additional monthly revenue','Merchant wallet adoption creating new commission income streams'],threats:['CBK regulatory pressure on dormant wallet reclassification rules','Competitor mobile platforms compressing fee structures in key segments','FX exposure risk if multi-currency wallet rollout proceeds']},insights:[{title:'Settlement gap approaching regulatory trigger',body:'The KES 4.1M settlement gap has grown 32% in 30 days. Under CBK guidelines unresolved gaps exceeding 45 days trigger mandatory disclosure — escalate immediately.',type:'danger',badge:'Critical'},{title:'Dormant wallet liability accelerating',body:'Dormant wallet count grew 18.4% — fastest-growing category. This creates regulatory float liability and customer re-engagement obligation under CBK wallet regulations.',type:'warning',badge:'Watch'},{title:'Revenue per transaction improving',body:'Net revenue per transaction improved 6% indicating better product mix and reduced fee waivers across all channels.',type:'success',badge:'Good'},{title:'Agent commission structure healthy',body:'Agent commission payouts at 1.8% remain within the approved 2% ceiling. Merchant commission is outperforming on new tier pricing.',type:'info',badge:'Info'}],recommendations:['Initiate dormant wallet re-engagement campaign within 14 days — SMS + USSD outreach','Escalate settlement gap to CFO and Head of Operations — target resolution within 21 days','Commission CBS audit of failed transaction root cause against system logs','Fast-track 340 merchants in onboarding pipeline for Q3 revenue diversification','Commission float investment feasibility study — KES 800K monthly yield unrealised'],trends:{revenue:{labels:['Jan','Feb','Mar','Apr','May','Jun'],data:[12.1,14.5,13.2,17.8,16.5,18.6],growth:'8.3%',topProduct:'Mobile Transfers'},wallets:{labels:['Jan','Feb','Mar','Apr','May','Jun'],active:[4200,4500,4800,5100,5400,5900],dormant:[120,145,180,165,200,340]},transactions:{labels:['Jan','Feb','Mar','Apr','May','Jun'],success:[8200,9100,8700,10200,9800,11500],failed:[320,280,410,295,330,420],pending:[180,220,195,240,210,260]},compliance:{labels:['Jan','Feb','Mar','Apr','May','Jun'],highValue:[45,52,48,61,58,70],dormantFlags:[12,18,15,22,19,31]}},gapChecker:{present:['General Ledger Report','Trial Balance Report','Chart of Accounts','Wallet Liability Summary','Transaction Register','Revenue Summary Report','Commission Summary Report','Settlement Summary Report','Settlement Aging Report','High Value Transactions Report'],missing:['Float/Pooled Account Balance Report','Sanctions Screening Report','SAR Log','Customer Onboarding Report','API Error Report'],warning:['Dormant Account Compliance Report (incomplete)','Settlement Reconciliation (partial period)','Commission Reconciliation (missing Q1)']},standardChecklist:[{item:'All 12 WaaS categories covered',status:'warn'},{item:'GL reconciliation present',status:'pass'},{item:'Settlement aging attached',status:'pass'},{item:'Dormant compliance complete',status:'fail'},{item:'SAP batch report included',status:'fail'},{item:'Commission reconciliation attached',status:'warn'},{item:'Audit trail complete',status:'pass'}]};}
+function demoData(r){return{role:r,summary:'Wallet platform shows strong growth with KES 18.6M net revenue, up 15.2% MoM. Key risks include a widening settlement gap of KES 4.1M and dormant wallet growth of 18.4% requiring immediate regulatory attention.',kpis:[{label:'Total Revenue',value:'KES 18.6M',delta:'+12.3%',positive:true},{label:'Gross Margin',value:'39.8%',delta:'+2.1%',positive:true},{label:'Cost of Goods',value:'KES 11.2M',delta:'+8.2%',positive:false},{label:'Net Profit',value:'KES 3.3M',delta:'+15.2%',positive:true},{label:'Operating Expenses',value:'KES 4.1M',delta:'+18.4%',positive:false},{label:'Stock Turnover',value:'4.2x',delta:'+0.3x',positive:true}],swot:{strengths:['Revenue growing 12.3% MoM — ahead of industry 8% benchmark','Gross margin improved 2.1 points through better supplier negotiations','Top 3 SKUs contributing 68% of revenue with strong repeat purchase rates','Customer retention rate strong at 87% across active accounts'],weaknesses:['Operating expenses growing faster than revenue — 18.4% vs 12.3% revenue growth','Cost of goods increasing due to supply chain pressures — margin risk if unchecked','Stock turnover below optimal for 3 SKU categories — working capital tied up'],opportunities:['Tier-2 market expansion pipeline with 340 new distribution points identified','Private label product launch could add 8-12 points of margin on key categories','E-commerce channel showing 34% growth — underinvested relative to opportunity'],threats:['Competitor price pressure compressing margins in core product categories','Raw material cost inflation of 12% forecast for next quarter','Key customer concentration risk — top 3 accounts represent 41% of revenue']},insights:[{title:'Operating expenses outpacing revenue growth',body:'OpEx grew 18.4% against revenue growth of 12.3% — this margin compression will erode profitability if not addressed within 60 days. Review discretionary spend categories immediately.',type:'danger',badge:'Critical'},{title:'Supply chain cost pressure building',body:'Cost of goods is up 8.2% driven by raw material and logistics costs. Three supplier contracts are up for renewal next quarter — negotiation strategy needed now.',type:'warning',badge:'Watch'},{title:'Gross margin improving despite cost pressure',body:'Gross margin improved 2.1 points to 39.8% through better product mix and reduced discounting. The premium SKU range is the primary driver — expand distribution.',type:'success',badge:'Good'},{title:'E-commerce channel significantly outperforming',body:'Digital channel revenue grew 34% MoM and now represents 18% of total revenue — up from 13% last period. Consider accelerating investment in this channel.',type:'info',badge:'Info'}],recommendations:['Conduct immediate OpEx review — identify KES 800K in discretionary savings within 30 days to restore margin trajectory','Begin supplier renegotiations for Q4 contracts — target 5% reduction in COGS on top 3 categories','Accelerate e-commerce channel investment — allocate additional KES 500K marketing budget given 34% growth rate','Fast-track tier-2 distribution expansion — 340 new points represent KES 4.2M incremental revenue opportunity','Launch private label feasibility study for top 2 categories — potential 10 point margin uplift'],trends:{revenue:{labels:['Jan','Feb','Mar','Apr','May','Jun'],data:[12.1,14.5,13.2,17.8,16.5,18.6],growth:'8.3%',topProduct:'Mobile Transfers'},wallets:{labels:['Jan','Feb','Mar','Apr','May','Jun'],active:[4200,4500,4800,5100,5400,5900],dormant:[120,145,180,165,200,340]},transactions:{labels:['Jan','Feb','Mar','Apr','May','Jun'],success:[8200,9100,8700,10200,9800,11500],failed:[320,280,410,295,330,420],pending:[180,220,195,240,210,260]},compliance:{labels:['Jan','Feb','Mar','Apr','May','Jun'],highValue:[45,52,48,61,58,70],dormantFlags:[12,18,15,22,19,31]}},gapChecker:{present:['General Ledger Report','Trial Balance Report','Chart of Accounts','Wallet Liability Summary','Transaction Register','Revenue Summary Report','Commission Summary Report','Settlement Summary Report','Settlement Aging Report','High Value Transactions Report'],missing:['Float/Pooled Account Balance Report','Sanctions Screening Report','SAR Log','Customer Onboarding Report','API Error Report'],warning:['Dormant Account Compliance Report (incomplete)','Settlement Reconciliation (partial period)','Commission Reconciliation (missing Q1)']},standardChecklist:[{item:'All 12 WaaS categories covered',status:'warn'},{item:'GL reconciliation present',status:'pass'},{item:'Settlement aging attached',status:'pass'},{item:'Dormant compliance complete',status:'fail'},{item:'SAP batch report included',status:'fail'},{item:'Commission reconciliation attached',status:'warn'},{item:'Audit trail complete',status:'pass'}]};}
 
 
 // ── Admin sub-tabs ────────────────────────────────────────────────────────────
@@ -2191,6 +2226,163 @@ async function deleteSchedule(id) {
 async function sendReminder(id, title) {
   try { await api('/api/schedules/' + id + '/remind', 'POST', {}); toast('Reminder sent to report owner'); }
   catch(e) { toast('Error sending reminder: ' + e.message); }
+}
+
+
+// ── Consolidation Engine ──────────────────────────────────────────────────────
+let allSubmissions = [];
+
+async function openConsolidation() {
+  const area = document.getElementById('consolidation-area');
+  if (area.style.display !== 'none') { area.style.display='none'; return; }
+  area.style.display = 'block';
+  try {
+    allSubmissions = await api('/api/submissions');
+    if (allSubmissions.length === 0) {
+      document.getElementById('consolidation-checklist').innerHTML = '<div style="font-size:12px;color:rgba(255,255,255,0.5);text-align:center;padding:16px">No submitted reports yet. Reports will appear here once team members submit them.</div>';
+      return;
+    }
+    document.getElementById('consolidation-checklist').innerHTML = allSubmissions.map((s,i) => `
+      <label class="consolidation-check">
+        <input type="checkbox" id="cons-check-${i}" value="${s.id||s._id}">
+        <div style="flex:1">
+          <div style="font-weight:600">${s.scheduleTitle||'Report'}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.6)">${s.submittedByName||'Unknown'} · ${s.department||'—'} · ${new Date(s.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        </div>
+        <span style="font-size:10px;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:10px">${s.filename||'—'}</span>
+      </label>`).join('');
+  } catch(e) { toast('Error loading submissions: ' + e.message); }
+}
+
+async function runConsolidation() {
+  const checked = Array.from(document.querySelectorAll('#consolidation-checklist input:checked'));
+  if (checked.length < 2) { toast('Select at least 2 reports to consolidate'); return; }
+  if (checked.length > 8) { toast('Maximum 8 reports can be consolidated at once'); return; }
+
+  const btn = document.getElementById('consolidate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Consolidating...';
+
+  const perspective = document.getElementById('consolidation-perspective').value;
+  const style = document.getElementById('consolidation-style').value;
+  const styleLabels = { management:'Management Accounts', board:'Board Report', financial:'Financial Report', dashboard:'Dashboard View' };
+
+  // Fetch all selected submissions
+  const selectedIds = checked.map(c => c.value);
+  const submissions = allSubmissions.filter(s => selectedIds.includes(s.id||s._id));
+
+  // Build combined data text
+  let combinedData = '';
+  let deptList = [];
+  for (const sub of submissions) {
+    try {
+      const full = await api('/api/submissions/' + (sub.id||sub._id));
+      combinedData += `
+
+=== ${sub.scheduleTitle} (${sub.submittedByName} · ${sub.department||'Unknown Dept'}) ===
+`;
+      combinedData += (full.reportText || '[No data]').slice(0, 2000);
+      deptList.push(sub.department || 'Unknown');
+    } catch(e) { console.error('Could not fetch submission:', e.message); }
+  }
+
+  const STYLE_PROMPTS = {
+    management: 'Format as comprehensive Management Accounts covering all departments. Include a consolidated P&L view, department performance table, key variances, and period-on-period commentary.',
+    board: 'Format as a Board Report. Start with a one-page executive summary, then risk register, then department highlights, then strategic recommendations. Plain language throughout.',
+    financial: 'Format as a Financial Report with consolidated revenue, costs, margins, and profitability by department where data is available. Include variance analysis.',
+    dashboard: 'Format as a Dashboard Report with traffic lights (Green/Amber/Red) for each department, top 3 wins, top 3 concerns, and 30-day priorities.'
+  };
+
+  const prompt = `You are SARE Analytics Intelligence — a business intelligence AI working across all industries including FMCG, retail, and services.
+
+You are consolidating reports from MULTIPLE DEPARTMENTS into ONE MASTER REPORT.
+
+DEPARTMENTS INCLUDED: ${[...new Set(deptList)].join(', ')}
+TOTAL REPORTS: ${submissions.length}
+EXECUTIVE PERSPECTIVE: ${perspective.toUpperCase()}
+REPORT STYLE: ${styleLabels[style]}
+
+${STYLE_PROMPTS[style]}
+
+IMPORTANT INSTRUCTIONS:
+- This is NOT a wallet/financial services business — it is an FMCG/general business
+- Treat each department section as its own business unit
+- Identify cross-department synergies and conflicts
+- Flag where one department's performance affects another
+- Give ONE consolidated set of top recommendations for the whole organisation
+- Use KES for currency where amounts appear in the data
+
+COMBINED DEPARTMENT DATA:
+${combinedData.slice(0, 8000)}
+
+After the structured report, append a JSON block (wrapped in |||JSON_START||| and |||JSON_END|||) with this structure for the SWOT and KPIs:
+|||JSON_START|||
+{
+  "summary": "2-sentence organisation-wide executive summary",
+  "kpis": [{"label":"Metric","value":"Value","delta":"+X%","positive":true}],
+  "swot": {
+    "strengths": ["org-wide strength 1","strength 2","strength 3"],
+    "weaknesses": ["weakness 1","weakness 2","weakness 3"],
+    "opportunities": ["opportunity 1","opportunity 2","opportunity 3"],
+    "threats": ["threat 1","threat 2","threat 3"]
+  },
+  "recommendations": ["priority action 1","action 2","action 3","action 4","action 5"]
+}
+|||JSON_END|||`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role:'user', content:prompt }] })
+    });
+    const data = await resp.json();
+    const fullText = (data.content||[]).map(b=>b.text||'').join('');
+
+    // Extract JSON block if present
+    const jsonMatch = fullText.match(/\|\|\|JSON_START\|\|\|(.*?)\|\|\|JSON_END\|\|\|/s);
+    let parsedJson = null;
+    let reportText = fullText;
+
+    if (jsonMatch) {
+      try {
+        parsedJson = JSON.parse(jsonMatch[1].trim());
+        reportText = fullText.replace(/\|\|\|JSON_START\|\|\|.*?\|\|\|JSON_END\|\|\|/s, '').trim();
+      } catch(e) { console.error('JSON parse error:', e.message); }
+    }
+
+    // Display the consolidated report
+    document.getElementById('consolidation-area').style.display = 'none';
+    
+    // Show in query output area
+    gotoView('query');
+    document.getElementById('query-output').style.display = 'block';
+    document.getElementById('query-output-title').textContent = 'Master Consolidated Report — ' + styleLabels[style];
+    
+    const html = markdownToHtml(reportText);
+    document.getElementById('query-response').innerHTML = `
+      <div style="background:linear-gradient(135deg,var(--navy),var(--navy-soft));border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;color:#fff">
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Master Consolidated Report</div>
+        <div style="font-size:13px;font-weight:600;color:#fff">${submissions.length} departments · ${styleLabels[style]} · ${perspective.toUpperCase()} perspective</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:4px">Departments: ${[...new Set(deptList)].join(', ')}</div>
+      </div>
+      <div class="structured-report">${html}</div>`;
+
+    // If we got parsed JSON, populate the SWOT view too
+    if (parsedJson) {
+      parsedJson.role = perspective;
+      analysisResult = parsedJson;
+      populateSWOT(parsedJson);
+      toast('Master report ready — view full SWOT in SWOT Analysis tab');
+      saveToHistory(parsedJson, 'Consolidated: ' + submissions.map(s=>s.scheduleTitle).join(' + '));
+    } else {
+      toast('Master consolidated report generated');
+    }
+
+  } catch(e) { toast('Consolidation error: ' + e.message); }
+  
+  btn.disabled = false;
+  btn.innerHTML = '✦ Generate master report';
 }
 
 // ── Test email ───────────────────────────────────────────────────────────────
