@@ -917,9 +917,17 @@ function showApp(){
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function gotoView(v){
-  ['upload','swot','insights','trends','builder','gaps','admin'].forEach(id=>{document.getElementById('view-'+id).style.display=(id===v?'block':'none');});
+  const ALL_VIEWS=['upload','swot','insights','trends','builder','gaps','admin','history','query','schedules','myreports','workflows'];
+  ALL_VIEWS.forEach(id=>{
+    const el=document.getElementById('view-'+id);
+    if(el) el.style.display=(id===v?'block':'none');
+  });
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(el=>{if(el.textContent.toLowerCase().includes(v==='upload'?'upload':v==='swot'?'swot':v==='insights'?'insight':v==='trends'?'trend':v==='builder'?'builder':v==='gaps'?'gap':'user'))el.classList.add('active');});
+  document.querySelectorAll('.nav-item').forEach(el=>{
+    const t=el.textContent.toLowerCase();
+    const matches = (v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'));
+    if(matches) el.classList.add('active');
+  });
   const m=PAGE_META[v]||{title:v,sub:''};
   document.getElementById('page-title').textContent=m.title;
   document.getElementById('page-sub').textContent=m.sub;
@@ -1510,6 +1518,9 @@ async function saveToHistory(result, filename) {
 
 // ── Load history ──────────────────────────────────────────────────────────────
 async function loadHistory() {
+  if(!TOKEN){toast('Please log in first');return;}
+  document.getElementById('history-empty').style.display='none';
+  document.getElementById('history-list').innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);font-size:13px">Loading history...</div>';
   try {
     const records = await api('/api/history');
     const filter = document.getElementById('hist-filter')?.value || '';
@@ -1568,7 +1579,11 @@ async function loadHistory() {
           </div>
         </div>`;
     }).join('');
-  } catch(e) { toast('Failed to load history: ' + e.message); }
+  } catch(e) {
+    document.getElementById('history-list').innerHTML='';
+    document.getElementById('history-empty').style.display='block';
+    if(e.message&&!e.message.includes('401'))toast('History error: '+e.message);
+  }
 }
 
 async function deleteHistory(id) {
