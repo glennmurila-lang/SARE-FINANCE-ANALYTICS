@@ -74,7 +74,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .sidebar-btn{flex:1;padding:7px;background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:rgba(255,255,255,0.5);font-size:11px;cursor:pointer;font-family:inherit;transition:all 0.2s;text-align:center}
 .sidebar-btn:hover{background:rgba(255,255,255,0.07);color:#fff}
 /* MAIN */
-.main-content{margin-left:240px;min-height:100vh}
+.main-content{margin-left:240px;min-height:100vh;width:calc(100% - 240px);overflow-x:hidden}
 .topbar{background:#fff;border-bottom:1px solid var(--gray-200);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-sm)}
 .page-title{font-size:15px;font-weight:700;color:var(--navy);letter-spacing:-0.02em}
 .page-sub{font-size:11px;color:var(--gray-400);margin-top:1px}
@@ -83,7 +83,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .topbar-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
 .topbar-btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
 .topbar-btn.primary:hover{background:#1558c0}
-.content-body{padding:22px 24px}
+.content-body{padding:22px 24px;max-width:100%;overflow-x:hidden}
 /* CARDS */
 .card{background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:18px 22px;box-shadow:var(--shadow-sm);margin-bottom:14px}
 .card-title{font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:14px;display:flex;align-items:center;gap:7px;letter-spacing:-0.01em}
@@ -293,7 +293,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .note-text{color:var(--gray-700);margin-top:2px;line-height:1.5}
 .note-time{font-size:10px;color:var(--gray-400);margin-top:2px}
 
-.schedule-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm);transition:all 0.2s;position:relative;overflow:hidden}
+.schedule-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm);transition:all 0.2s;position:relative;overflow:hidden;width:100%;box-sizing:border-box}
 .schedule-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
 .schedule-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
 .schedule-card.overdue::before{background:var(--red)}
@@ -434,7 +434,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
   </nav>
   <div class="main-content">
     <div class="topbar">
-      <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your reports</div></div>
+      <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your Wallet as a Service reports</div></div>
       <div class="topbar-right">
         <button class="topbar-btn" onclick="exportAnalysis()">&#8595; Export</button>
         <button class="topbar-btn primary" id="new-btn" style="display:none" onclick="gotoView('upload')">+ New Analysis</button>
@@ -754,15 +754,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 
       <div id="view-schedules" style="display:none">
         <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
             <div class="card-title" style="margin:0">📅 Report schedules</div>
             <button class="topbar-btn primary" onclick="openAddSchedule()">＋ Create schedule</button>
           </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-          <div class="metric-card"><div class="metric-label">Total schedules</div><div class="metric-value" id="sch-total">—</div></div>
-          <div class="metric-card danger"><div class="metric-label">Overdue</div><div class="metric-value" id="sch-overdue">—</div></div>
-          <div class="metric-card"><div class="metric-label">Due this week</div><div class="metric-value" id="sch-week">—</div></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
+            <div class="metric-card"><div class="metric-label">Total schedules</div><div class="metric-value" id="sch-total">—</div></div>
+            <div class="metric-card danger"><div class="metric-label">Overdue</div><div class="metric-value" id="sch-overdue">—</div></div>
+            <div class="metric-card" style="background:var(--amber-light)"><div class="metric-label">Due this week</div><div class="metric-value" id="sch-week">—</div></div>
+          </div>
         </div>
         <div id="schedules-empty" class="empty-state"><span class="empty-icon">📅</span><div class="empty-title">No schedules yet</div><div class="empty-state-body">Create your first report schedule to start the workflow.</div></div>
         <div id="schedules-list"></div>
