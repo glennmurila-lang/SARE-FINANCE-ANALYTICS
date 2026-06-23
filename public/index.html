@@ -292,6 +292,34 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .note-author{font-weight:600;color:var(--navy);font-size:11px}
 .note-text{color:var(--gray-700);margin-top:2px;line-height:1.5}
 .note-time{font-size:10px;color:var(--gray-400);margin-top:2px}
+
+.schedule-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm);transition:all 0.2s;position:relative;overflow:hidden}
+.schedule-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.schedule-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.schedule-card.overdue::before{background:var(--red)}
+.schedule-card.due-soon::before{background:var(--amber)}
+.schedule-card.ok::before{background:var(--green)}
+.schedule-title{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.schedule-meta{font-size:11px;color:var(--gray-400);margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap}
+.schedule-meta span{display:flex;align-items:center;gap:4px}
+.due-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.due-overdue{background:var(--red-light);color:var(--red)}
+.due-soon{background:var(--amber-light);color:var(--amber)}
+.due-ok{background:var(--green-light);color:var(--green)}
+.workflow-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.workflow-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.submission-status{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.status-submitted{background:var(--green-light);color:var(--green)}
+.status-pending{background:var(--amber-light);color:var(--amber)}
+.status-overdue{background:var(--red-light);color:var(--red)}
+.myreport-card{border:1.5px solid var(--amber);background:var(--amber-light);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px}
+.myreport-title{font-size:14px;font-weight:700;color:var(--amber);margin-bottom:4px}
+.upload-report-zone{border:2px dashed var(--amber);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;margin-top:10px;transition:all 0.2s}
+.upload-report-zone:hover{background:rgba(217,119,6,0.05)}
+.freq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
+.freq-btn{padding:8px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;cursor:pointer;text-align:center;font-size:12px;font-weight:500;transition:all 0.15s;color:var(--gray-700)}
+.freq-btn:hover{border-color:var(--blue);color:var(--blue)}
+.freq-btn.active{border-color:var(--blue);background:var(--blue-light);color:var(--blue);font-weight:700}
 </style>
 </head>
 <body>
@@ -381,6 +409,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div class="nav-section-label">Intelligence</div>
         <button class="nav-item" onclick="gotoView('history')"><span class="nav-icon">📚</span>Report History</button>
         <button class="nav-item" onclick="gotoView('query')"><span class="nav-icon">💬</span>AI Query Engine</button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-label">Workflows</div>
+        <button class="nav-item" onclick="gotoView('schedules')"><span class="nav-icon">📅</span>Report Schedules</button>
+        <button class="nav-item" onclick="gotoView('myreports')"><span class="nav-icon">📤</span>My Reports <span id="pending-badge" class="nav-badge" style="display:none">!</span></button>
+        <button class="nav-item" onclick="gotoView('workflows')"><span class="nav-icon">🔄</span>Submissions</button>
       </div>
       <div class="nav-section" id="admin-nav-section" style="display:none">
         <div class="nav-section-label">Administration</div>
@@ -733,7 +767,45 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         </div>
       </div>
 
-      <!-- MODAL -->
+      
+      <!-- SCHEDULES VIEW -->
+      <div id="view-schedules" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="card-title" style="margin:0">📅 Report schedules</div>
+            <button class="topbar-btn primary" onclick="openAddSchedule()">＋ Create schedule</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+          <div class="metric-card"><div class="metric-label">Total schedules</div><div class="metric-value" id="sch-total">—</div></div>
+          <div class="metric-card danger"><div class="metric-label">Overdue</div><div class="metric-value" id="sch-overdue">—</div></div>
+          <div class="metric-card"><div class="metric-label">Due this week</div><div class="metric-value" id="sch-week">—</div></div>
+        </div>
+        <div id="schedules-empty" class="empty-state"><span class="empty-icon">📅</span><div class="empty-title">No schedules yet</div><div class="empty-state-body">Create your first report schedule to start the workflow.</div></div>
+        <div id="schedules-list"></div>
+      </div>
+
+      <!-- MY REPORTS VIEW -->
+      <div id="view-myreports" style="display:none">
+        <div id="myreports-empty" class="empty-state"><span class="empty-icon">📤</span><div class="empty-title">No reports assigned to you</div><div class="empty-state-body">When a manager assigns you a report to submit, it will appear here.</div></div>
+        <div id="myreports-list"></div>
+      </div>
+
+      <!-- WORKFLOWS / SUBMISSIONS VIEW -->
+      <div id="view-workflows" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="card-title" style="margin:0">🔄 Submitted reports and insights</div>
+            <select id="workflow-filter" class="form-select" style="width:180px;padding:7px 10px;font-size:12px" onchange="loadWorkflows()">
+              <option value="">All schedules</option>
+            </select>
+          </div>
+        </div>
+        <div id="workflows-empty" class="empty-state"><span class="empty-icon">🔄</span><div class="empty-title">No submissions yet</div><div class="empty-state-body">Once report owners submit their reports, AI insights will appear here.</div></div>
+        <div id="workflows-list"></div>
+      </div>
+
+<!-- MODAL -->
 <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <div class="modal-title" id="modal-title">Add User</div>
@@ -756,7 +828,10 @@ const API = window.location.origin;
 const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth & Strategy',manager:'Manager Level · Operational KPIs',board:'Board Pack · Governance & Risk',auditor:'Auditor Level · Compliance & Controls'};
 const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your Wallet as a Service reports'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all 42 WaaS categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
     history:{title:'Report History',sub:'Track, compare and evolve your analysis over time'},
-    query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'}};
+    query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'},
+    schedules:{title:'Report Schedules',sub:'Create and manage recurring report requests'},
+    myreports:{title:'My Reports',sub:'Reports assigned to you for submission'},
+    workflows:{title:'Submissions & Insights',sub:'View submitted reports and AI-generated insights'}};
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(endpoint, method='GET', body=null) {
@@ -832,6 +907,12 @@ function showApp(){
   document.getElementById('sb-role').textContent=(USER?.org||'')+(USER?.role?' · '+USER.role:'');
   if(USER?.role==='admin') document.getElementById('admin-nav-section').style.display='block';
   gotoView('upload');
+  setTimeout(async()=>{
+    try{
+      const p=await api('/api/submissions/pending');
+      if(p.length>0){document.getElementById('pending-badge').style.display='flex';document.getElementById('pending-badge').textContent=p.length;}
+    }catch{}
+  },1000);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -846,6 +927,9 @@ function gotoView(v){
   if(v==='trends'&&analysisResult&&!chartsBuilt)buildCharts();
   if(v==='admin'&&USER?.role==='admin'){loadUsers();}
   if(v==='history')loadHistory();
+  if(v==='schedules')loadSchedules();
+  if(v==='myreports')loadMyReports();
+  if(v==='workflows')loadWorkflows();
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
@@ -1795,6 +1879,292 @@ function exportQueryOutput() {
 
 function saveQueryToHistory() {
   toast('Query saved to conversation log');
+}
+
+
+// ── Scheduling state ──────────────────────────────────────────────────────────
+let selectedFrequency = 'monthly';
+let allUsers = [];
+let allSchedules = [];
+
+// ── Load schedules ────────────────────────────────────────────────────────────
+async function loadSchedules() {
+  try {
+    const schedules = await api('/api/schedules');
+    allSchedules = schedules;
+    const now = new Date();
+    const in7 = new Date(now.getTime() + 7*24*60*60*1000);
+    const overdue = schedules.filter(s => new Date(s.nextDue) < now);
+    const week = schedules.filter(s => new Date(s.nextDue) >= now && new Date(s.nextDue) <= in7);
+    document.getElementById('sch-total').textContent = schedules.length;
+    document.getElementById('sch-overdue').textContent = overdue.length;
+    document.getElementById('sch-week').textContent = week.length;
+    if (overdue.length > 0) document.getElementById('pending-badge').style.display = 'flex';
+
+    // Populate workflow filter
+    const wf = document.getElementById('workflow-filter');
+    if (wf) wf.innerHTML = '<option value="">All schedules</option>' + schedules.map(s => `<option value="${s.id||s._id}">${s.title}</option>`).join('');
+
+    if (schedules.length === 0) {
+      document.getElementById('schedules-empty').style.display = 'block';
+      document.getElementById('schedules-list').innerHTML = '';
+      return;
+    }
+    document.getElementById('schedules-empty').style.display = 'none';
+    const freqLabels = { daily:'Daily', weekly:'Weekly', monthly:'Monthly', quarterly:'Quarterly', annually:'Annual' };
+    const rtLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard', investor:'Investor Brief' };
+    document.getElementById('schedules-list').innerHTML = schedules.map(s => {
+      const due = new Date(s.nextDue);
+      const daysLeft = Math.ceil((due - now) / (1000*60*60*24));
+      const isOverdue = daysLeft < 0;
+      const isDueSoon = daysLeft >= 0 && daysLeft <= 3;
+      const statusClass = isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : 'ok';
+      const dueLabel = isOverdue ? `Overdue by ${Math.abs(daysLeft)} day${Math.abs(daysLeft)!==1?'s':''}` : daysLeft === 0 ? 'Due today' : `Due in ${daysLeft} day${daysLeft!==1?'s':''}`;
+      const badgeClass = isOverdue ? 'due-overdue' : isDueSoon ? 'due-soon' : 'due-ok';
+      return `<div class="schedule-card ${statusClass}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+          <div>
+            <div class="schedule-title">${s.title}</div>
+            <div class="schedule-meta">
+              <span>📋 ${rtLabels[s.reportType]||s.reportType}</span>
+              <span>🔄 ${freqLabels[s.frequency]||s.frequency}</span>
+              <span>👤 ${s.ownerName||'Unknown'}</span>
+              <span>🏢 ${s.department||'—'}</span>
+            </div>
+          </div>
+          <span class="due-badge ${badgeClass}">${dueLabel}</span>
+        </div>
+        ${s.description ? `<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px">${s.description}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="tbl-btn" onclick="sendReminder('${s.id||s._id}','${s.title}')">📧 Send reminder</button>
+          <button class="tbl-btn" onclick="openEditSchedule('${s.id||s._id}')">Edit</button>
+          <button class="tbl-btn red" onclick="deleteSchedule('${s.id||s._id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { toast('Failed to load schedules: ' + e.message); }
+}
+
+async function loadMyReports() {
+  try {
+    const pending = await api('/api/submissions/pending');
+    if (pending.length === 0) {
+      document.getElementById('myreports-empty').style.display = 'block';
+      document.getElementById('myreports-list').innerHTML = '';
+      document.getElementById('pending-badge').style.display = 'none';
+      return;
+    }
+    document.getElementById('myreports-empty').style.display = 'none';
+    document.getElementById('pending-badge').style.display = 'flex';
+    document.getElementById('pending-badge').textContent = pending.length;
+    const freqLabels = { daily:'Daily', weekly:'Weekly', monthly:'Monthly', quarterly:'Quarterly', annually:'Annual' };
+    const rtLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard', investor:'Investor Brief' };
+    document.getElementById('myreports-list').innerHTML = `
+      <div class="card" style="background:#FFFBEB;border-color:#FDE68A;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:4px">You have ${pending.length} report${pending.length!==1?'s':''} to submit</div>
+        <div style="font-size:12px;color:#92400E">Upload your Excel or CSV file for each report below. SARE AI will automatically generate insights for your managers.</div>
+      </div>
+      ${pending.map(s => {
+        const due = new Date(s.nextDue);
+        const daysLeft = Math.ceil((due - new Date()) / (1000*60*60*24));
+        return `<div class="myreport-card">
+          <div class="myreport-title">${s.title}</div>
+          <div style="font-size:11px;color:var(--amber);margin-bottom:8px">
+            ${rtLabels[s.reportType]||s.reportType} · ${freqLabels[s.frequency]||s.frequency} · Due: ${due.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})} (${daysLeft < 0 ? 'OVERDUE' : daysLeft === 0 ? 'TODAY' : daysLeft + ' days left'})
+          </div>
+          ${s.description ? `<div style="font-size:12px;color:#92400E;margin-bottom:10px">${s.description}</div>` : ''}
+          <div class="upload-report-zone" onclick="document.getElementById('report-upload-${s.id||s._id}').click()">
+            <div style="font-size:24px;margin-bottom:6px">📎</div>
+            <div style="font-size:13px;font-weight:600;color:var(--amber)">Click to upload your report</div>
+            <div style="font-size:11px;color:#92400E;margin-top:4px">Excel (.xlsx) or CSV accepted</div>
+          </div>
+          <input type="file" id="report-upload-${s.id||s._id}" accept=".xlsx,.xls,.csv" style="display:none" onchange="submitReport('${s.id||s._id}',this)">
+          <div style="margin-top:8px">
+            <input type="text" id="report-notes-${s.id||s._id}" class="form-input" placeholder="Add notes for this submission (optional)" style="font-size:12px;padding:8px 12px">
+          </div>
+        </div>`;
+      }).join('')}`;
+  } catch(e) { toast('Failed to load reports: ' + e.message); }
+}
+
+async function submitReport(scheduleId, fileInput) {
+  if (!fileInput.files[0]) return;
+  const file = fileInput.files[0];
+  const notes = document.getElementById('report-notes-' + scheduleId)?.value || '';
+  const formData = new FormData();
+  formData.append('report', file);
+  formData.append('scheduleId', scheduleId);
+  formData.append('notes', notes);
+  try {
+    toast('Uploading and analysing report...');
+    const headers = {};
+    if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+    const resp = await fetch(API + '/api/submissions', { method:'POST', headers, body: formData });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Upload failed');
+    toast('Report submitted — your managers have been notified');
+    loadMyReports();
+    loadWorkflows();
+  } catch(e) { toast('Submit error: ' + e.message); }
+}
+
+async function loadWorkflows() {
+  try {
+    const subs = await api('/api/submissions');
+    const filter = document.getElementById('workflow-filter')?.value || '';
+    const filtered = filter ? subs.filter(s => s.scheduleId === filter) : subs;
+    if (filtered.length === 0) {
+      document.getElementById('workflows-empty').style.display = 'block';
+      document.getElementById('workflows-list').innerHTML = '';
+      return;
+    }
+    document.getElementById('workflows-empty').style.display = 'none';
+    document.getElementById('workflows-list').innerHTML = filtered.map(s => `
+      <div class="workflow-card">
+        <div class="workflow-header">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--navy)">${s.scheduleTitle||'Report'}</div>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:3px">
+              Submitted by ${s.submittedByName||'Unknown'} · ${s.department||'—'} · ${new Date(s.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+            </div>
+            ${s.filename ? `<div style="font-size:11px;color:var(--blue);margin-top:2px">📎 ${s.filename}</div>` : ''}
+          </div>
+          <span class="submission-status status-submitted">Submitted</span>
+        </div>
+        ${s.notes ? `<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;font-style:italic">"${s.notes}"</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="tbl-btn primary" style="background:var(--blue);color:#fff;border-color:var(--blue)" onclick="viewSubmissionInsights('${s.id||s._id}')">View AI Insights</button>
+          <button class="tbl-btn" onclick="loadSubmissionIntoQuery('${s.id||s._id}')">💬 Query this report</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { toast('Failed to load submissions: ' + e.message); }
+}
+
+async function viewSubmissionInsights(id) {
+  try {
+    const sub = await api('/api/submissions/' + id);
+    if (!sub.reportText) { toast('No report data available for this submission'); return; }
+    toast('Generating AI insights from submitted report...');
+    const schedule = allSchedules.find(s => s.id === sub.scheduleId || s._id === sub.scheduleId);
+    currentRole = schedule?.perspective || 'cfo';
+    const prompt = `You are SARE Analytics Intelligence. Analyse this submitted report and generate executive insights for the ${currentRole.toUpperCase()} level.
+Report: ${sub.scheduleTitle}
+Submitted by: ${sub.submittedByName}
+Data:
+${sub.reportText}
+
+Respond ONLY with valid JSON matching the standard SARE analysis format with role, summary, kpis, swot, insights, recommendations, trends, gapChecker, standardChecklist fields.`;
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+    });
+    const data = await resp.json();
+    let raw = (data.content||[]).map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    const result = JSON.parse(raw);
+    analysisResult = result;
+    populateAll(result);
+    gotoView('swot');
+    toast('Insights generated from submitted report');
+  } catch(e) { toast('Could not generate insights: ' + e.message); }
+}
+
+async function loadSubmissionIntoQuery(id) {
+  try {
+    const sub = await api('/api/submissions/' + id);
+    currentQueryContext = { summary: sub.scheduleTitle + ' — submitted by ' + sub.submittedByName, filename: sub.filename, kpis:[], swot:{}, insights:[], recommendations:[] };
+    gotoView('query');
+    toast('Report loaded into Query Engine');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── Create/edit schedule modal ────────────────────────────────────────────────
+async function openAddSchedule() {
+  if (allUsers.length === 0) {
+    try { allUsers = await api('/api/admin/users'); } catch { allUsers = []; }
+  }
+  document.getElementById('modal-title').textContent = 'Create report schedule';
+  document.getElementById('modal-sub').textContent = 'Set up a recurring report request with automatic notifications.';
+  document.getElementById('modal-error').style.display = 'none';
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const dateStr = tomorrow.toISOString().slice(0,10);
+  const rtOptions = ['financial','management','board','audit','dashboard','investor'].map(r =>
+    `<option value="${r}">${{financial:'Financial Report',management:'Management Accounts',board:'Board Report',audit:'Audit Report',dashboard:'Dashboard Report',investor:'Investor Brief'}[r]}</option>`).join('');
+  const userOptions = allUsers.map(u => `<option value="${u._id||u.id}" data-email="${u.email}" data-name="${u.name}">${u.name} (${u.email})</option>`).join('');
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group"><label class="form-label">Report title</label><input class="form-input" id="sch-title" type="text" placeholder="e.g. Monthly Finance Report"></div>
+    <div class="form-group"><label class="form-label">Description (optional)</label><input class="form-input" id="sch-desc" type="text" placeholder="What should be included in this report?"></div>
+    <div class="form-group"><label class="form-label">Report type</label><select class="form-select" id="sch-type">${rtOptions}</select></div>
+    <div class="form-group"><label class="form-label">Analysis perspective</label><select class="form-select" id="sch-perspective"><option value="cfo">CFO</option><option value="ceo">CEO</option><option value="manager">Manager</option><option value="board">Board</option><option value="auditor">Auditor</option></select></div>
+    <div class="form-group"><label class="form-label">Frequency</label>
+      <div class="freq-grid">
+        <div class="freq-btn active" onclick="setFreq(this,'daily')">Daily</div>
+        <div class="freq-btn" onclick="setFreq(this,'weekly')">Weekly</div>
+        <div class="freq-btn active" onclick="setFreq(this,'monthly')" id="freq-monthly">Monthly</div>
+        <div class="freq-btn" onclick="setFreq(this,'quarterly')">Quarterly</div>
+        <div class="freq-btn" onclick="setFreq(this,'annually')">Annually</div>
+      </div>
+      <input type="hidden" id="sch-freq" value="monthly">
+    </div>
+    <div class="form-group"><label class="form-label">First due date</label><input class="form-input" id="sch-duedate" type="date" value="${dateStr}"></div>
+    <div class="form-group"><label class="form-label">Report owner (who submits the report)</label><select class="form-select" id="sch-owner">${userOptions}</select></div>
+    <div class="form-group"><label class="form-label">Reviewers (who gets the insights)</label>
+      <div id="reviewer-checkboxes" style="max-height:120px;overflow-y:auto;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:8px">
+        ${allUsers.map(u => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer"><input type="checkbox" value="${u._id||u.id}" style="cursor:pointer"> ${u.name} — ${u.role||''}</label>`).join('')}
+      </div>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML = `<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitCreateSchedule()">Create schedule</button>`;
+  document.getElementById('modal-overlay').style.display = 'flex';
+  // Set monthly as default selected
+  document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.freq-btn[onclick*="monthly"]')?.classList.add('active');
+  selectedFrequency = 'monthly';
+}
+
+function setFreq(el, freq) {
+  document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedFrequency = freq;
+  if (document.getElementById('sch-freq')) document.getElementById('sch-freq').value = freq;
+}
+
+async function submitCreateSchedule() {
+  document.getElementById('modal-error').style.display = 'none';
+  const ownerSelect = document.getElementById('sch-owner');
+  const ownerOpt = ownerSelect?.options[ownerSelect.selectedIndex];
+  const reviewerCheckboxes = document.querySelectorAll('#reviewer-checkboxes input:checked');
+  const reviewerIds = Array.from(reviewerCheckboxes).map(cb => cb.value);
+  const body = {
+    title: document.getElementById('sch-title').value.trim(),
+    description: document.getElementById('sch-desc').value.trim(),
+    reportType: document.getElementById('sch-type').value,
+    perspective: document.getElementById('sch-perspective').value,
+    frequency: selectedFrequency,
+    firstDueDate: document.getElementById('sch-duedate').value,
+    ownerId: ownerSelect?.value,
+    ownerName: ownerOpt?.dataset.name || '',
+    ownerEmail: ownerOpt?.dataset.email || '',
+    reviewerIds, department: USER?.department || ''
+  };
+  if (!body.title) { document.getElementById('modal-error').textContent = 'Report title is required'; document.getElementById('modal-error').style.display = 'block'; return; }
+  try {
+    await api('/api/schedules', 'POST', body);
+    closeModal(); loadSchedules(); toast('Schedule created — owner has been notified by email');
+  } catch(e) { document.getElementById('modal-error').textContent = e.message; document.getElementById('modal-error').style.display = 'block'; }
+}
+
+async function openEditSchedule(id) {
+  toast('Edit schedule — coming soon. Use delete and recreate for now.');
+}
+
+async function deleteSchedule(id) {
+  if (!confirm('Delete this schedule?')) return;
+  try { await api('/api/schedules/' + id, 'DELETE'); loadSchedules(); toast('Schedule deleted'); }
+  catch(e) { toast('Error: ' + e.message); }
+}
+
+async function sendReminder(id, title) {
+  try { await api('/api/schedules/' + id + '/remind', 'POST', {}); toast('Reminder sent to report owner'); }
+  catch(e) { toast('Error sending reminder: ' + e.message); }
 }
 
 // ── Test email ───────────────────────────────────────────────────────────────
