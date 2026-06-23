@@ -22,17 +22,20 @@ if (!fs.existsSync(path.join(__dirname, 'data'))) {
   fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 }
 
-// Seed default admin users if DB is empty
+// Seed admin account if DB is empty
 async function seedUsers() {
   const count = await db.count({});
   if (count === 0) {
-    const users = [
-      { name: 'Admin User', email: 'admin@sare.co.ke', password: bcrypt.hashSync('Sare@2024!', 10), role: 'admin', org: 'SARE Analytics', active: true, createdAt: new Date() },
-      { name: 'CFO Demo', email: 'cfo@demo.com', password: bcrypt.hashSync('Demo@1234', 10), role: 'cfo', org: 'Demo Organisation', active: true, createdAt: new Date() },
-      { name: 'CEO Demo', email: 'ceo@demo.com', password: bcrypt.hashSync('Demo@1234', 10), role: 'ceo', org: 'Demo Organisation', active: true, createdAt: new Date() },
-    ];
-    for (const u of users) await db.insert(u);
-    console.log('Default users seeded');
+    await db.insert({
+      name: 'SARE Admin',
+      email: 'admin@sare.africa',
+      password: bcrypt.hashSync('@Sare 2026!', 10),
+      role: 'admin',
+      org: 'SARE Analytics',
+      active: true,
+      createdAt: new Date()
+    });
+    console.log('Admin account created');
   }
 }
 seedUsers();
