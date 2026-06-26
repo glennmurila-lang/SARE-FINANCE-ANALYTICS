@@ -6,6 +6,8 @@
 <title>SARE Analytics · Make Cents Make Sense</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{--navy:#0B1929;--navy-mid:#122038;--navy-soft:#1a2e4a;--blue:#1B6FE4;--blue-light:#EBF2FF;--blue-mid:#4D9AFF;--gold:#D4A843;--green:#0DAF6A;--green-light:#E6FAF2;--red:#E53E3E;--red-light:#FFF0F0;--amber:#D97706;--amber-light:#FFFBEB;--gray-50:#F9FAFB;--gray-100:#F3F4F6;--gray-200:#E5E7EB;--gray-400:#9CA3AF;--gray-600:#6B7280;--gray-800:#1F2937;--white:#FFFFFF;--shadow-sm:0 1px 3px rgba(0,0,0,0.08);--shadow-md:0 4px 16px rgba(0,0,0,0.10);--shadow-lg:0 12px 40px rgba(0,0,0,0.14);--radius:12px;--radius-sm:8px;--radius-lg:16px}
@@ -235,7 +237,44 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 /* TOAST */
 .toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:11px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:9999;animation:slideUp 0.3s ease;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px}
 @keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
-@media(max-width:900px){.sidebar{width:200px}.main-content{margin-left:200px}.role-grid{grid-template-columns:repeat(3,1fr)}.swot-grid,.grid-2{grid-template-columns:1fr}.auth-left{display:none}.auth-right{width:100%}}
+
+/* ── Hamburger menu button ── */
+.hamburger{display:none;position:fixed;top:12px;left:12px;z-index:300;background:var(--navy);border:none;border-radius:8px;width:38px;height:38px;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:8px}
+.hamburger span{display:block;width:20px;height:2px;background:#fff;border-radius:2px;transition:all 0.3s}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:199}
+
+@media(max-width:900px){
+  .sidebar{width:260px;transform:translateX(-100%);transition:transform 0.3s ease}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay.open{display:block}
+  .main-content{margin-left:0;width:100%}
+  .hamburger{display:flex}
+  .topbar{padding:0 16px 0 56px}
+  .content-body{padding:16px}
+  .role-grid{grid-template-columns:repeat(3,1fr)}
+  .swot-grid,.grid-2,.dash-grid-2,.dash-grid-3{grid-template-columns:1fr}
+  .auth-left{display:none}
+  .auth-right{width:100%}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .gap-stat-row{grid-template-columns:repeat(3,1fr)}
+  .freq-grid{grid-template-columns:repeat(2,1fr)}
+  .tab-row{overflow-x:auto;width:100%}
+  .modal{margin:10px;max-height:calc(100vh - 20px)}
+  .admin-table{font-size:11px}
+  .admin-table th,.admin-table td{padding:7px 8px}
+  .dash-hero-stats{grid-template-columns:repeat(2,1fr)}
+  .page-title{font-size:13px}
+  .page-sub{font-size:10px}
+  .topbar-btn span{display:none}
+}
+@media(max-width:480px){
+  .role-grid{grid-template-columns:repeat(2,1fr)}
+  .metrics-grid{grid-template-columns:1fr 1fr}
+  .dash-hero-stats{grid-template-columns:1fr 1fr}
+  .swot-grid{grid-template-columns:1fr}
+  .report-pills .report-pill{font-size:11px;padding:6px 10px}
+  .analyze-btn{font-size:13px;padding:12px}
+}
 
 .dept-card{border-radius:var(--radius);border:1px solid var(--gray-200);padding:16px 18px;background:#fff;box-shadow:var(--shadow-sm);transition:all 0.2s}
 .dept-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
@@ -323,6 +362,39 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .freq-btn{padding:8px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;cursor:pointer;text-align:center;font-size:12px;font-weight:500;transition:all 0.15s;color:var(--gray-700)}
 .freq-btn:hover{border-color:var(--blue);color:var(--blue)}
 .freq-btn.active{border-color:var(--blue);background:var(--blue-light);color:var(--blue);font-weight:700}
+
+.dash-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-soft) 100%);border-radius:var(--radius-lg);padding:28px 32px;color:#fff;margin-bottom:20px;position:relative;overflow:hidden}
+.dash-hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(27,111,228,0.3) 0%,transparent 70%)}
+.dash-hero-title{font-size:24px;font-weight:700;letter-spacing:-0.03em;margin-bottom:6px;position:relative}
+.dash-hero-sub{font-size:13px;color:rgba(255,255,255,0.6);position:relative}
+.dash-hero-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:20px;position:relative}
+.dash-hero-stat{background:rgba(255,255,255,0.1);border-radius:10px;padding:14px 16px;backdrop-filter:blur(10px)}
+.dash-hero-stat-val{font-size:22px;font-weight:700;letter-spacing:-0.03em}
+.dash-hero-stat-label{font-size:11px;color:rgba(255,255,255,0.6);margin-top:3px}
+.dash-hero-stat-delta{font-size:11px;font-weight:600;margin-top:4px}
+.dash-section{margin-bottom:20px}
+.dash-section-title{font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.dash-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.dash-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dash-activity-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100)}
+.dash-activity-item:last-child{border:none}
+.dash-activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.dash-activity-text{font-size:12px;color:var(--gray-700);line-height:1.5}
+.dash-activity-time{font-size:10px;color:var(--gray-400);margin-top:2px}
+.dash-dept-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm)}
+.dash-dept-name{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.dash-dept-bar{height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.dash-dept-fill{height:100%;border-radius:3px;transition:width 0.6s ease}
+.dash-dept-meta{font-size:11px;color:var(--gray-400)}
+.dash-quick-btn{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);cursor:pointer;transition:all 0.2s;text-align:left;width:100%;font-family:inherit}
+.dash-quick-btn:hover{border-color:var(--blue);background:var(--blue-light);transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.dash-quick-icon{font-size:22px;width:40px;height:40px;background:var(--gray-50);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dash-quick-title{font-size:12px;font-weight:700;color:var(--navy)}
+.dash-quick-sub{font-size:11px;color:var(--gray-400);margin-top:2px}
+.dash-alert{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:var(--radius-sm);margin-bottom:8px;font-size:12px}
+.dash-alert.red{background:var(--red-light);border:1px solid #FECACA;color:var(--red)}
+.dash-alert.amber{background:var(--amber-light);border:1px solid #FDE68A;color:var(--amber)}
+.dash-alert.green{background:var(--green-light);border:1px solid #A7F3D0;color:var(--green)}
 </style>
 </head>
 <body>
@@ -388,6 +460,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 
 <!-- APP SCREEN -->
 <div id="app-screen">
+  <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 <nav class="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-wrap">
@@ -439,11 +515,114 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
     <div class="topbar">
       <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your business reports for AI analysis</div></div>
       <div class="topbar-right">
-        <button class="topbar-btn" onclick="exportAnalysis()">&#8595; Export</button>
+        <button class="topbar-btn" onclick="exportAnalysis()" title="Export as PDF">⬇ <span>Export PDF</span></button>
         <button class="topbar-btn primary" id="new-btn" style="display:none" onclick="gotoView('upload')">+ New Analysis</button>
       </div>
     </div>
     <div class="content-body">
+
+<div id="view-dashboard" style="display:none">
+
+        <!-- Hero strip -->
+        <div class="dash-hero">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <div>
+              <div class="dash-hero-title">Good <span id="dash-greeting">morning</span>, <span id="dash-username">there</span> 👋</div>
+              <div class="dash-hero-sub" id="dash-date">Loading...</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="topbar-btn" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.2);color:#fff" onclick="gotoView('upload')">+ New Analysis</button>
+              <button class="topbar-btn" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.2);color:#fff" onclick="gotoView('schedules')">📅 Schedules</button>
+            </div>
+          </div>
+          <div class="dash-hero-stats" id="dash-hero-stats">
+            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-analyses">—</div><div class="dash-hero-stat-label">Total analyses</div></div>
+            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-schedules">—</div><div class="dash-hero-stat-label">Active schedules</div></div>
+            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-submissions">—</div><div class="dash-hero-stat-label">Reports submitted</div></div>
+            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-users">—</div><div class="dash-hero-stat-label">Team members</div></div>
+            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-overdue" style="color:#FCA5A5">—</div><div class="dash-hero-stat-label">Overdue reports</div></div>
+          </div>
+        </div>
+
+        <!-- Alerts row -->
+        <div id="dash-alerts" style="margin-bottom:16px"></div>
+
+        <!-- Main grid -->
+        <div class="dash-grid-2" style="margin-bottom:16px">
+
+          <!-- Recent analyses -->
+          <div class="card">
+            <div class="dash-section-title">
+              📊 Recent analyses
+              <button class="tbl-btn" onclick="gotoView('history')" style="font-size:11px">View all</button>
+            </div>
+            <div id="dash-recent-analyses">
+              <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No analyses yet — run your first one</div>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="card">
+            <div class="dash-section-title">⚡ Quick actions</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="dash-quick-btn" onclick="gotoView('upload')">
+                <div class="dash-quick-icon">📤</div>
+                <div><div class="dash-quick-title">Upload & Analyse</div><div class="dash-quick-sub">Upload a report and get instant AI insights</div></div>
+              </button>
+              <button class="dash-quick-btn" onclick="gotoView('schedules')">
+                <div class="dash-quick-icon">📅</div>
+                <div><div class="dash-quick-title">Create report schedule</div><div class="dash-quick-sub">Set up recurring report requests for your team</div></div>
+              </button>
+              <button class="dash-quick-btn" onclick="gotoView('query')">
+                <div class="dash-quick-icon">💬</div>
+                <div><div class="dash-quick-title">Query the AI</div><div class="dash-quick-sub">Ask follow-up questions about any analysis</div></div>
+              </button>
+              <button class="dash-quick-btn" onclick="gotoView('workflows')">
+                <div class="dash-quick-icon">🔄</div>
+                <div><div class="dash-quick-title">View submissions</div><div class="dash-quick-sub">See submitted reports and AI insights</div></div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Department activity + Pending reports -->
+        <div class="dash-grid-2" style="margin-bottom:16px">
+
+          <!-- Department overview -->
+          <div class="card">
+            <div class="dash-section-title">
+              🏢 Department activity
+              <button class="tbl-btn" onclick="gotoView('admin')" style="font-size:11px">Manage</button>
+            </div>
+            <div id="dash-dept-activity">
+              <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">Loading departments...</div>
+            </div>
+          </div>
+
+          <!-- Pending & overdue -->
+          <div class="card">
+            <div class="dash-section-title">
+              ⏰ Reports status
+              <button class="tbl-btn" onclick="gotoView('schedules')" style="font-size:11px">View all</button>
+            </div>
+            <div id="dash-report-status">
+              <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">Loading schedules...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Latest insights strip -->
+        <div class="card">
+          <div class="dash-section-title">
+            💡 Latest insights from recent analysis
+            <button class="tbl-btn" onclick="gotoView('insights')" style="font-size:11px">View full insights</button>
+          </div>
+          <div id="dash-latest-insights">
+            <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">Run an analysis to see insights here</div>
+          </div>
+        </div>
+
+      </div>
 
       <div id="view-upload">
         <div class="card">
@@ -841,7 +1020,8 @@ let currentRole='cfo', uploadedFiles=[], analysisResult=null, charts={}, chartsB
 
 const API = window.location.origin;
 const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth & Strategy',manager:'Manager Level · Operational KPIs',board:'Board Pack · Governance & Risk',auditor:'Auditor Level · Compliance & Controls'};
-const PAGE_META={upload:{title:'Upload & Analyse',sub:'Upload your business reports for AI analysis'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports for any audience'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all key business categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
+const PAGE_META={dashboard:{title:'Dashboard',sub:'Company-wide performance overview · Make Cents Make Sense'},
+    upload:{title:'Upload & Analyse',sub:'Upload your business reports for AI analysis'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports for any audience'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all key business categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
     history:{title:'Report History',sub:'Track, compare and evolve your analysis over time'},
     query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'},
     schedules:{title:'Report Schedules',sub:'Create and manage recurring report requests'},
@@ -921,7 +1101,7 @@ function showApp(){
   document.getElementById('sb-name').textContent=USER?.name||'User';
   document.getElementById('sb-role').textContent=(USER?.org||'')+(USER?.role?' · '+USER.role:'');
   if(USER?.role==='admin') document.getElementById('admin-nav-section').style.display='block';
-  gotoView('upload');
+  gotoView('dashboard');
   setTimeout(async()=>{
     try{
       const p=await api('/api/submissions/pending');
@@ -932,7 +1112,7 @@ function showApp(){
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function gotoView(v){
-  const ALL_VIEWS=['upload','swot','insights','trends','builder','gaps','admin','history','query','schedules','myreports','workflows'];
+  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','schedules','myreports','workflows'];
   ALL_VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
     if(el) el.style.display=(id===v?'block':'none');
@@ -940,7 +1120,7 @@ function gotoView(v){
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>{
     const t=el.textContent.toLowerCase();
-    const matches = (v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'));
+    const matches = (v==='dashboard'&&t.includes('dashboard'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'));
     if(matches) el.classList.add('active');
   });
   const m=PAGE_META[v]||{title:v,sub:''};
@@ -949,6 +1129,7 @@ function gotoView(v){
   document.getElementById('new-btn').style.display=(v!=='upload'&&analysisResult)?'flex':'none';
   if(v==='trends'&&analysisResult&&!chartsBuilt)buildCharts();
   if(v==='admin'&&USER?.role==='admin'){loadUsers();}
+  if(v==='dashboard')loadDashboard();
   if(v==='history')loadHistory();
   if(v==='schedules')loadSchedules();
   if(v==='myreports')loadMyReports();
@@ -1903,14 +2084,18 @@ function displayQueryOutput(question, answer, isReport=false) {
 }
 
 function exportQueryOutput() {
-  const content = document.getElementById('query-response')?.innerText || '';
-  if (!content) { toast('Nothing to export'); return; }
-  const blob = new Blob([content], { type:'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `SARE_Report_${selectedReportStyle}_${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-  toast('Report exported');
+  const el = document.getElementById('query-response');
+  if (!el || !el.innerText.trim()) { toast('Nothing to export'); return; }
+  if (analysisResult) {
+    exportToPDF(analysisResult, 'SARE Report — ' + (selectedReportStyle||'').toUpperCase());
+  } else {
+    const blob = new Blob([el.innerText],{type:'text/plain'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `SARE_Report_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    toast('Report exported');
+  }
 }
 
 function saveQueryToHistory() {
@@ -2228,6 +2413,144 @@ async function sendReminder(id, title) {
   catch(e) { toast('Error sending reminder: ' + e.message); }
 }
 
+
+
+
+// ── Mobile sidebar ────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+// Close sidebar when a nav item is clicked on mobile
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (window.innerWidth <= 900) closeSidebar();
+    });
+  });
+});
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  // Set greeting and date
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  document.getElementById('dash-greeting').textContent = greeting;
+  document.getElementById('dash-username').textContent = USER?.name?.split(' ')[0] || 'there';
+  document.getElementById('dash-date').textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  // Load all data in parallel
+  try {
+    const isAdmin = USER?.role === 'admin' || USER?.accessLevel === 'executive';
+    const promises = [
+      api('/api/history').catch(()=>[]),
+      api('/api/schedules').catch(()=>[]),
+      api('/api/submissions').catch(()=>[]),
+      isAdmin ? api('/api/admin/users').catch(()=>[]) : Promise.resolve([]),
+      api('/api/departments').catch(()=>[]),
+    ];
+    const [history, schedules, submissions, users, depts] = await Promise.all(promises);
+
+    // Hero stats
+    const now2 = new Date();
+    const overdue = schedules.filter(s => new Date(s.nextDue) < now2).length;
+    document.getElementById('dhs-analyses').textContent = history.length;
+    document.getElementById('dhs-schedules').textContent = schedules.filter(s=>s.active).length;
+    document.getElementById('dhs-submissions').textContent = submissions.length;
+    document.getElementById('dhs-users').textContent = users.length || '—';
+    document.getElementById('dhs-overdue').textContent = overdue;
+
+    // Alerts
+    const alerts = [];
+    if (overdue > 0) alerts.push({ type:'red', icon:'🔴', text:`${overdue} report${overdue>1?'s are':' is'} overdue — send reminders from Report Schedules`, action:"gotoView('schedules')" });
+    const dueSoon = schedules.filter(s => { const d=Math.ceil((new Date(s.nextDue)-now2)/(1000*60*60*24)); return d>=0&&d<=3; }).length;
+    if (dueSoon > 0) alerts.push({ type:'amber', icon:'⚠️', text:`${dueSoon} report${dueSoon>1?'s are':' is'} due within 3 days`, action:"gotoView('schedules')" });
+    if (history.length === 0) alerts.push({ type:'green', icon:'💡', text:'Welcome to SARE! Upload your first report to start generating business intelligence.', action:"gotoView('upload')" });
+    document.getElementById('dash-alerts').innerHTML = alerts.map(a=>`
+      <div class="dash-alert ${a.type}" onclick="${a.action}" style="cursor:pointer">
+        <span style="font-size:16px">${a.icon}</span>
+        <span>${a.text}</span>
+        <span style="margin-left:auto;font-size:11px;font-weight:600;opacity:0.7">View →</span>
+      </div>`).join('');
+
+    // Recent analyses
+    const recent = history.slice(0,5);
+    document.getElementById('dash-recent-analyses').innerHTML = recent.length === 0
+      ? '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No analyses yet — run your first one</div>'
+      : recent.map(r => `
+        <div class="dash-activity-item" style="cursor:pointer" onclick="viewHistoryRecord('${r.id||r._id}')">
+          <div class="dash-activity-dot" style="background:var(--blue)"></div>
+          <div>
+            <div class="dash-activity-text"><strong>${r.filename||'Analysis'}</strong> — ${(r.perspective||'').toUpperCase()}</div>
+            <div class="dash-activity-time">${r.userName||'Unknown'} · ${r.department||'—'} · ${new Date(r.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+          </div>
+        </div>`).join('');
+
+    // Department activity
+    const deptColors = ['#1B6FE4','#0DAF6A','#D97706','#E53E3E','#534AB7','#0891B2','#DB2777'];
+    const deptSubmissions = {};
+    submissions.forEach(s => { deptSubmissions[s.department] = (deptSubmissions[s.department]||0)+1; });
+    const maxSubs = Math.max(...Object.values(deptSubmissions), 1);
+    document.getElementById('dash-dept-activity').innerHTML = depts.length === 0
+      ? '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No departments configured</div>'
+      : depts.map((d,i) => {
+          const subs = deptSubmissions[d.name]||0;
+          const pct = Math.round((subs/maxSubs)*100)||5;
+          return `<div class="dash-dept-card" style="margin-bottom:8px">
+            <div class="dash-dept-name">
+              <span style="width:10px;height:10px;border-radius:50%;background:${d.color||deptColors[i%deptColors.length]};flex-shrink:0"></span>
+              ${d.name}
+            </div>
+            <div class="dash-dept-bar"><div class="dash-dept-fill" style="width:${pct}%;background:${d.color||deptColors[i%deptColors.length]}"></div></div>
+            <div class="dash-dept-meta">${subs} submission${subs!==1?'s':''} · ${users.filter?users.filter(u=>u.department===d.name).length:0} members</div>
+          </div>`;
+        }).join('');
+
+    // Report status
+    const statusItems = schedules.slice(0,6).map(s => {
+      const due = new Date(s.nextDue);
+      const days = Math.ceil((due - now2)/(1000*60*60*24));
+      const isOverdue = days < 0;
+      const isDueSoon = days >= 0 && days <= 3;
+      const color = isOverdue ? 'var(--red)' : isDueSoon ? 'var(--amber)' : 'var(--green)';
+      const label = isOverdue ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today' : `${days}d left`;
+      return `<div class="dash-activity-item">
+        <div class="dash-activity-dot" style="background:${color}"></div>
+        <div style="flex:1">
+          <div class="dash-activity-text"><strong>${s.title}</strong></div>
+          <div class="dash-activity-time">${s.ownerName||'—'} · ${s.frequency}</div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${color};padding:2px 8px;background:${isOverdue?'var(--red-light)':isDueSoon?'var(--amber-light)':'var(--green-light)'};border-radius:10px">${label}</span>
+      </div>`;
+    });
+    document.getElementById('dash-report-status').innerHTML = statusItems.length === 0
+      ? '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No schedules yet</div>'
+      : statusItems.join('');
+
+    // Latest insights from most recent analysis
+    if (history.length > 0 && history[0].insights) {
+      const insights = (history[0].insights||[]).slice(0,3);
+      const icons={danger:'🚨',warning:'⚠️',success:'✅',info:'ℹ️'};
+      const bc={Critical:'badge-critical',Watch:'badge-watch',Good:'badge-good',Info:'badge-info'};
+      document.getElementById('dash-latest-insights').innerHTML = `
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:10px">From: ${history[0].filename||'Last analysis'} · ${new Date(history[0].createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        ${insights.map(ins=>`
+          <div class="insight-card ${ins.type}" style="margin-bottom:8px">
+            <div class="insight-icon">${icons[ins.type]||'ℹ️'}</div>
+            <div>
+              <div class="insight-title" style="font-size:12px">${ins.title}<span class="badge ${bc[ins.badge]||'badge-info'}">${ins.badge}</span></div>
+              <div class="insight-body" style="font-size:11px">${ins.body?.slice(0,120)}...</div>
+            </div>
+          </div>`).join('')}`;
+    }
+
+  } catch(e) { console.error('Dashboard error:', e.message); }
+}
 
 // ── Consolidation Engine ──────────────────────────────────────────────────────
 let allSubmissions = [];
