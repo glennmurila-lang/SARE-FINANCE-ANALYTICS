@@ -1339,6 +1339,104 @@ async function deleteUser(id,name){
 function closeModal(){document.getElementById('modal-overlay').style.display='none';}
 
 // ── Export ────────────────────────────────────────────────────────────────────
+function exportViaPrint(d, title) {
+  // Create a clean printable version and trigger browser print
+  const printWindow = window.open('', '_blank');
+  const roleLabel = ROLE_LABELS[d?.role] || d?.role || 'Report';
+  const date = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+
+  const kpiRows = (d?.kpis||[]).map(k =>
+    `<td>${k.label}</td><td><strong>${k.value}</strong></td><td style="color:${k.positive?'#0DAF6A':'#E53E3E'};font-weight:600">${k.delta}</td>`
+  ).map(row => `<tr>${row}</tr>`).join('');
+
+  const swotHtml = `
+    <table style="width:100%;border-collapse:collapse;margin:12px 0">
+      <tr>
+        <td style="width:50%;padding:12px;background:#E6FAF2;border:1px solid #A7F3D0;vertical-align:top">
+          <strong style="color:#065F46">STRENGTHS</strong><br><br>
+          ${(d?.swot?.strengths||[]).map(s=>`• ${s}`).join('<br>')}
+        </td>
+        <td style="width:50%;padding:12px;background:#FFFBEB;border:1px solid #FDE68A;vertical-align:top">
+          <strong style="color:#78350F">WEAKNESSES</strong><br><br>
+          ${(d?.swot?.weaknesses||[]).map(s=>`• ${s}`).join('<br>')}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px;background:#EBF2FF;border:1px solid #BFDBFE;vertical-align:top">
+          <strong style="color:#1E40AF">OPPORTUNITIES</strong><br><br>
+          ${(d?.swot?.opportunities||[]).map(s=>`• ${s}`).join('<br>')}
+        </td>
+        <td style="padding:12px;background:#FFF0F0;border:1px solid #FECACA;vertical-align:top">
+          <strong style="color:#991B1B">THREATS</strong><br><br>
+          ${(d?.swot?.threats||[]).map(s=>`• ${s}`).join('<br>')}
+        </td>
+      </tr>
+    </table>`;
+
+  const insightsHtml = (d?.insights||[]).map((ins,i) => `
+    <tr style="background:${i%2?'#f9fafb':'#fff'}">
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:12px">${ins.title}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-size:12px">${ins.body}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center">
+        <span style="background:${ins.badge==='Critical'?'#FEE2E2':ins.badge==='Watch'?'#FEF3C7':'#D1FAE5'};color:${ins.badge==='Critical'?'#991B1B':ins.badge==='Watch'?'#92400E':'#065F46'};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">${ins.badge}</span>
+      </td>
+    </tr>`).join('');
+
+  const recsHtml = (d?.recommendations||[]).map((r,i) =>
+    `<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#1B6FE4;font-weight:700;text-align:center;width:30px">${i+1}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${r}</td></tr>`
+  ).join('');
+
+  printWindow.document.write(`<!DOCTYPE html><html><head>
+    <title>SARE Analytics — ${title||roleLabel}</title>
+    <style>
+      @page{margin:15mm} 
+      body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;margin:0}
+      .header{background:#0B1929;color:#fff;padding:20px 24px;margin-bottom:20px}
+      .header-logo{font-size:20px;font-weight:700;margin-bottom:4px}
+      .header-sub{font-size:11px;color:rgba(255,255,255,0.6)}
+      .header-right{float:right;text-align:right;font-size:11px;color:rgba(255,255,255,0.7)}
+      h2{font-size:14px;color:#0B1929;border-bottom:2px solid #1B6FE4;padding-bottom:6px;margin:20px 0 12px}
+      .summary{background:#f0f7ff;border-left:4px solid #1B6FE4;padding:12px 16px;margin-bottom:16px;font-size:13px;line-height:1.6}
+      table{width:100%;border-collapse:collapse}
+      .kpi-table td{padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px}
+      .kpi-table tr:nth-child(even){background:#f9fafb}
+      .footer{margin-top:30px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between}
+      @media print{.no-print{display:none}}
+    </style>
+  </head><body>
+    <div class="header">
+      <div class="header-right">Generated: ${date}<br>${roleLabel}</div>
+      <div class="header-logo">SARE Analytics Intelligence</div>
+      <div class="header-sub">Make Cents Make Sense</div>
+    </div>
+
+    <div style="padding:0 24px">
+      <h1 style="font-size:18px;color:#0B1929;margin-bottom:8px">${title||'Executive Intelligence Report'}</h1>
+      <div class="summary">${d?.summary||''}</div>
+
+      <h2>Key Performance Indicators</h2>
+      <table class="kpi-table"><tbody>${kpiRows}</tbody></table>
+
+      <h2>SWOT Analysis</h2>
+      ${swotHtml}
+
+      <h2>Key Insights</h2>
+      <table><thead><tr style="background:#0B1929;color:#fff"><th style="padding:8px 12px;text-align:left">Insight</th><th style="padding:8px 12px;text-align:left">Detail</th><th style="padding:8px 12px;text-align:center;width:80px">Severity</th></tr></thead><tbody>${insightsHtml}</tbody></table>
+
+      <h2>Strategic Recommendations</h2>
+      <table><tbody>${recsHtml}</tbody></table>
+
+      <div class="footer">
+        <span>SARE Analytics Intelligence — Make Cents Make Sense</span>
+        <span>Confidential</span>
+      </div>
+    </div>
+    <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`);
+  printWindow.document.close();
+  toast('PDF ready — use your browser Print dialog → Save as PDF');
+}
+
 function exportAnalysis(){
   if(!analysisResult){toast('Generate an analysis first');return;}
   const d=analysisResult;
