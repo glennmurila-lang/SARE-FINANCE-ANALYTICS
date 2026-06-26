@@ -1458,12 +1458,8 @@ function exportViaPrint(d, title) {
 
 
 function exportAnalysis(){
-  if(!analysisResult){toast('Generate an analysis first');return;}
-  const d=analysisResult;
-  let text=`SARE ANALYTICS INTELLIGENCE REPORT\n${'='.repeat(50)}\nRole: ${ROLE_LABELS[d.role]||d.role}\n\nEXECUTIVE SUMMARY\n${d.summary||''}\n\nKEY METRICS\n${(d.kpis||[]).map(k=>`${k.label}: ${k.value} (${k.delta})`).join('\n')}\n\nSWOT ANALYSIS\nStrengths:\n${(d.swot?.strengths||[]).map(s=>'• '+s).join('\n')}\nWeaknesses:\n${(d.swot?.weaknesses||[]).map(s=>'• '+s).join('\n')}\nOpportunities:\n${(d.swot?.opportunities||[]).map(s=>'• '+s).join('\n')}\nThreats:\n${(d.swot?.threats||[]).map(s=>'• '+s).join('\n')}\n\nRECOMMENDATIONS\n${(d.recommendations||[]).map((r,i)=>`${i+1}. ${r}`).join('\n')}`;
-  const blob=new Blob([text],{type:'text/plain'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SARE_${currentRole.toUpperCase()}_${new Date().toISOString().slice(0,10)}.txt`;a.click();
-  toast('✅ Report exported');
+  if(!analysisResult){ toast('Generate an analysis first'); return; }
+  exportViaPrint(analysisResult);
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -2204,16 +2200,7 @@ function displayQueryOutput(question, answer, isReport=false) {
 function exportQueryOutput() {
   const el = document.getElementById('query-response');
   if (!el || !el.innerText.trim()) { toast('Nothing to export'); return; }
-  if (analysisResult) {
-    exportToPDF(analysisResult, 'SARE Report — ' + (selectedReportStyle||'').toUpperCase());
-  } else {
-    const blob = new Blob([el.innerText],{type:'text/plain'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `SARE_Report_${new Date().toISOString().slice(0,10)}.txt`;
-    a.click();
-    toast('Report exported');
-  }
+  exportViaPrint(analysisResult || {summary: el.innerText, kpis:[], swot:{strengths:[],weaknesses:[],opportunities:[],threats:[]}, insights:[], recommendations:[]});
 }
 
 function saveQueryToHistory() {
