@@ -1,4 +1,5 @@
 const express = require('express');
+const Anthropic = require('@anthropic-ai/sdk');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -13,6 +14,7 @@ const fs = require('fs');
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'sare-analytics-secret-key-2024-waas';
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
 const PORT = process.env.PORT || 3000;
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@sare.africa';
@@ -365,6 +367,39 @@ app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
+// ── Anthropic AI proxy (secure server-side) ──────────────────────────────────
+app.post('/api/analyse', auth, async (req,res) => {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to environment variables.' });
+    }
+    const { prompt, maxTokens } = req.body;
+    if (!prompt) return res.status(400).json({ error: 'Prompt required' });
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens || 1000,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const text = (message.content||[]).map(b=>b.text||'').join('');
+    res.json({ text, usage: message.usage });
+  } catch(e) {
+    console.error('Analyse error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Download submitted report file ────────────────────────────────────────────
+app.get('/api/submissions/:id/download', auth, async (req,res) => {
+  try {
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    if (!sub.fileBuffer) return res.status(404).json({ error: 'File not stored — please resubmit' });
+    res.setHeader('Content-Disposition', `attachment; filename="${sub.filename||'report.xlsx'}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.send(Buffer.from(sub.fileBuffer, 'base64'));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/health', (req,res) => res.json({ status:'ok', version:'6.0.0', emailEnabled:!!resend, features:['history','scheduling','query'] }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, () => console.log(`SARE Analytics v4 running on http://localhost:${PORT} | Email: ${resend?'enabled':'disabled (set RESEND_API_KEY)'}`));
@@ -542,6 +577,8 @@ app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
       submittedById: req.user.id, submittedByName: req.user.name,
       department: req.user.department,
       filename: req.file?.originalname || 'Manual submission',
+      fileBuffer: req.file ? req.file.buffer.toString('base64') : null,
+      fileMime: req.file?.mimetype || null,
       notes: notes||'', reportText,
       status: 'submitted', createdAt: new Date()
     });
