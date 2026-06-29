@@ -2380,59 +2380,22 @@ async function loadWorkflows() {
 
 async function viewSubmissionInsights(id) {
   try {
-    toast('Loading submission...');
+    toast('Loading and analysing report...');
     const sub = await api('/api/submissions/' + id);
-
-    // Debug: show what we got
-    console.log('Submission loaded:', sub.scheduleTitle, 'Text length:', sub.reportText?.length || 0);
-
-    if (!sub.reportText || sub.reportText.trim().length < 10) {
-      // No text stored — try to generate insights from title/notes only
-      toast('Report data is limited — generating insights from available information...');
-    }
-
     const schedule = allSchedules.find(s => s.id === sub.scheduleId || s._id === sub.scheduleId);
     currentRole = schedule?.perspective || 'cfo';
-
-    const dataText = sub.reportText || `Report: ${sub.scheduleTitle}. Submitted by: ${sub.submittedByName} from ${sub.department} department. Notes: ${sub.notes || 'None provided.'}`;
-
-    const prompt = `You are SARE Analytics Intelligence — a business intelligence AI for FMCG and general business.
-
-Analyse this business report and generate executive insights for the ${currentRole.toUpperCase()} level.
-Report: ${sub.scheduleTitle}
-Submitted by: ${sub.submittedByName} (${sub.department||'Finance'})
-Date: ${new Date(sub.createdAt).toLocaleDateString()}
-
-Data:
-${dataText.slice(0,5000)}
-
-IMPORTANT: Do NOT assume this is a wallet/financial services business. Analyse the actual data provided.
-
-Respond ONLY with valid JSON (no markdown):
-{"role":"${currentRole}","summary":"2-sentence summary","kpis":[{"label":"Metric","value":"Value","delta":"+X%","positive":true}],"swot":{"strengths":["s1","s2","s3"],"weaknesses":["w1","w2","w3"],"opportunities":["o1","o2","o3"],"threats":["t1","t2","t3"]},"insights":[{"title":"t","body":"insight","type":"info","badge":"Info"}],"recommendations":["r1","r2","r3"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[0,0,0,0,0,0],"growth":"—","topProduct":"—"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[0,0,0,0,0,0],"dormant":[0,0,0,0,0,0]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[0,0,0,0,0,0],"failed":[0,0,0,0,0,0],"pending":[0,0,0,0,0,0]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[0,0,0,0,0,0],"dormantFlags":[0,0,0,0,0,0]}},"gapChecker":{"present":[],"missing":[],"warning":[]},"standardChecklist":[]}`;
-
-    toast('Generating AI insights — please wait...');
-
-    // Use server-side JSON parsing for reliability
+    const dataText = sub.reportText || 'Report: ' + sub.scheduleTitle + '. Submitted by: ' + sub.submittedByName + '.';
+    const prompt = 'You are SARE Analytics Intelligence for FMCG and general business. Analyse this report for the ' + currentRole.toUpperCase() + ' level. Report: ' + sub.scheduleTitle + '. Data: ' + dataText.slice(0,4000) + '. Respond ONLY with valid JSON: {"role":"' + currentRole + '","summary":"2-sentence summary of key findings","kpis":[{"label":"Key Metric","value":"Value","delta":"+X%","positive":true}],"swot":{"strengths":["strength 1","strength 2","strength 3"],"weaknesses":["weakness 1","weakness 2","weakness 3"],"opportunities":["opportunity 1","opportunity 2"],"threats":["threat 1","threat 2"]},"insights":[{"title":"Key Finding","body":"Detailed insight with numbers","type":"warning","badge":"Watch"}],"recommendations":["Action 1","Action 2","Action 3"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[0,0,0,0,0,0],"growth":"—","topProduct":"—"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[0,0,0,0,0,0],"dormant":[0,0,0,0,0,0]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[0,0,0,0,0,0],"failed":[0,0,0,0,0,0],"pending":[0,0,0,0,0,0]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[0,0,0,0,0,0],"dormantFlags":[0,0,0,0,0,0]}},"gapChecker":{"present":[],"missing":[],"warning":[]},"standardChecklist":[]}';
     const result = await callAIJson(prompt, 1000);
     result.role = currentRole;
     analysisResult = result;
     populateAll(result);
     gotoView('swot');
-    toast('Insights generated from ' + sub.scheduleTitle);
-    try { saveToHistory(result, sub.scheduleTitle + ' (submitted by ' + sub.submittedByName + ')'); } catch(he){}
-
+    toast('Insights ready for ' + sub.scheduleTitle);
+    try { saveToHistory(result, sub.scheduleTitle); } catch(he){}
   } catch(e) {
-    console.error('viewSubmissionInsights error:', e);
-    if (e.message.includes('fetch')) {
-      toast('Network error — check your internet connection and try again');
-    } else if (e.message.includes('API error')) {
-      toast('AI service error: ' + e.message);
-    } else if (e.message.includes('JSON')) {
-      toast('Could not parse AI response — please try again');
-    } else {
-      toast('Error: ' + e.message);
-    }
+    console.error('viewSubmissionInsights error:', e.message);
+    toast('Error generating insights: ' + e.message);
   }
 }
 
