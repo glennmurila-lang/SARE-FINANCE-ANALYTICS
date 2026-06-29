@@ -373,14 +373,31 @@ app.post('/api/analyse', auth, async (req,res) => {
     if (!process.env.ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to environment variables.' });
     }
-    const { prompt, maxTokens } = req.body;
+    const { prompt, maxTokens, expectJson } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt required' });
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens || 1000,
       messages: [{ role: 'user', content: prompt }]
     });
-    const text = (message.content||[]).map(b=>b.text||'').join('');
+    let text = (message.content||[]).map(b=>b.text||'').join('');
+    
+    // If JSON expected, parse server-side and return clean object
+    if (expectJson) {
+      try {
+        // Extract JSON between first { and last }
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          const jsonStr = text.slice(start, end + 1);
+          const parsed = JSON.parse(jsonStr);
+          return res.json({ text, parsed, success: true });
+        }
+      } catch(parseErr) {
+        console.error('Server-side JSON parse failed:', parseErr.message);
+        // Return raw text and let client handle
+      }
+    }
     res.json({ text, usage: message.usage });
   } catch(e) {
     console.error('Analyse error:', e.message);
