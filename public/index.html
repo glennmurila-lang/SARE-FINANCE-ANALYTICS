@@ -2393,30 +2393,79 @@ async function loadWorkflows() {
 
 async function viewSubmissionInsights(id) {
   try {
+    toast('Loading submission...');
     const sub = await api('/api/submissions/' + id);
-    if (!sub.reportText) { toast('No report data available for this submission'); return; }
-    toast('Generating AI insights from submitted report...');
+
+    // Debug: show what we got
+    console.log('Submission loaded:', sub.scheduleTitle, 'Text length:', sub.reportText?.length || 0);
+
+    if (!sub.reportText || sub.reportText.trim().length < 10) {
+      // No text stored — try to generate insights from title/notes only
+      toast('Report data is limited — generating insights from available information...');
+    }
+
     const schedule = allSchedules.find(s => s.id === sub.scheduleId || s._id === sub.scheduleId);
     currentRole = schedule?.perspective || 'cfo';
-    const prompt = `You are SARE Analytics Intelligence. Analyse this submitted report and generate executive insights for the ${currentRole.toUpperCase()} level.
-Report: ${sub.scheduleTitle}
-Submitted by: ${sub.submittedByName}
-Data:
-${sub.reportText}
 
-Respond ONLY with valid JSON matching the standard SARE analysis format with role, summary, kpis, swot, insights, recommendations, trends, gapChecker, standardChecklist fields.`;
+    const dataText = sub.reportText || `Report: ${sub.scheduleTitle}. Submitted by: ${sub.submittedByName} from ${sub.department} department. Notes: ${sub.notes || 'None provided.'}`;
+
+    const prompt = `You are SARE Analytics Intelligence — a business intelligence AI for FMCG and general business.
+
+Analyse this business report and generate executive insights for the ${currentRole.toUpperCase()} level.
+Report: ${sub.scheduleTitle}
+Submitted by: ${sub.submittedByName} (${sub.department||'Finance'})
+Date: ${new Date(sub.createdAt).toLocaleDateString()}
+
+Data:
+${dataText.slice(0,5000)}
+
+IMPORTANT: Do NOT assume this is a wallet/financial services business. Analyse the actual data provided.
+
+Respond ONLY with valid JSON (no markdown):
+{"role":"${currentRole}","summary":"2-sentence summary","kpis":[{"label":"Metric","value":"Value","delta":"+X%","positive":true}],"swot":{"strengths":["s1","s2","s3"],"weaknesses":["w1","w2","w3"],"opportunities":["o1","o2","o3"],"threats":["t1","t2","t3"]},"insights":[{"title":"t","body":"insight","type":"info","badge":"Info"}],"recommendations":["r1","r2","r3"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[0,0,0,0,0,0],"growth":"—","topProduct":"—"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[0,0,0,0,0,0],"dormant":[0,0,0,0,0,0]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[0,0,0,0,0,0],"failed":[0,0,0,0,0,0],"pending":[0,0,0,0,0,0]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[0,0,0,0,0,0],"dormantFlags":[0,0,0,0,0,0]}},"gapChecker":{"present":[],"missing":[],"warning":[]},"standardChecklist":[]}`;
+
+    toast('Generating AI insights — please wait...');
+
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(()=>({error:'API error'}));
+      throw new Error('API error ' + resp.status + ': ' + (errData.error?.message || JSON.stringify(errData)));
+    }
+
     const data = await resp.json();
     let raw = (data.content||[]).map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+
+    if (!raw) throw new Error('Empty response from AI');
+
     const result = JSON.parse(raw);
+    result.role = currentRole;
     analysisResult = result;
     populateAll(result);
     gotoView('swot');
-    toast('Insights generated from submitted report');
-  } catch(e) { toast('Could not generate insights: ' + e.message); }
+    saveToHistory(result, sub.scheduleTitle + ' (submitted by ' + sub.submittedByName + ')');
+    toast('Insights generated from ' + sub.scheduleTitle);
+
+  } catch(e) {
+    console.error('viewSubmissionInsights error:', e);
+    if (e.message.includes('fetch')) {
+      toast('Network error — check your internet connection and try again');
+    } else if (e.message.includes('API error')) {
+      toast('AI service error: ' + e.message);
+    } else if (e.message.includes('JSON')) {
+      toast('Could not parse AI response — please try again');
+    } else {
+      toast('Error: ' + e.message);
+    }
+  }
 }
 
 async function loadSubmissionIntoQuery(id) {
