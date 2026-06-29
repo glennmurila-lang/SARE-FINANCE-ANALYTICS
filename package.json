@@ -1,6 +1,6 @@
 {
   "name": "sare-analytics-intelligence",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "description": "SARE Analytics v6 \u2014 Scheduling, Workflows, History, Query Engine",
   "main": "server.js",
   "scripts": {
@@ -21,6 +21,7 @@
     "multer": "^1.4.5-lts.1",
     "nedb-promises": "*",
     "xlsx": "^0.18.5",
-    "resend": "^3.0.0"
+    "resend": "^3.0.0",
+    "@anthropic-ai/sdk": "^0.20.0"
   }
 }
