@@ -1183,11 +1183,7 @@ async function runAnalysis(){
   if(!dataText.trim())dataText='[Sample business data: Revenue KES 18.6M up 12%, Cost of Goods KES 11.2M, Gross Margin 39.8%, Operating expenses KES 4.1M, Net profit KES 3.3M, Top SKU: Product A at 34% of revenue, Stock turnover 4.2x, Customer count 1,240 active accounts]';
   const prompt=`You are SARE Analytics Intelligence — a business intelligence AI for any industry including FMCG, retail, manufacturing, services and finance.\nROLE: ${currentRole.toUpperCase()} — ${ROLE_FOCUS[currentRole]}\nCONTEXT: ${document.getElementById('ctx-input').value||'None.'}\nDATA:\n${dataText.slice(0,6500)}\nRespond ONLY with valid JSON, no markdown:\n{"role":"${currentRole}","summary":"2-sentence executive summary.","kpis":[{"label":"Total Wallet Liability","value":"KES 2.4B","delta":"+12.3%","positive":true},{"label":"Transaction Volume","value":"847K","delta":"+8.7%","positive":true},{"label":"Failed Txn Rate","value":"3.2%","delta":"-0.8%","positive":true},{"label":"Net Revenue","value":"KES 18.6M","delta":"+15.2%","positive":true},{"label":"Dormant Wallets","value":"2,340","delta":"+18.4%","positive":false},{"label":"Settlement Gap","value":"KES 4.1M","delta":"+32%","positive":false}],"swot":{"strengths":["s1","s2","s3","s4"],"weaknesses":["w1","w2","w3"],"opportunities":["o1","o2","o3"],"threats":["t1","t2","t3"]},"insights":[{"title":"t","body":"2-sentence insight with numbers.","type":"danger","badge":"Critical"},{"title":"t","body":"insight.","type":"warning","badge":"Watch"},{"title":"t","body":"insight.","type":"success","badge":"Good"},{"title":"t","body":"insight.","type":"info","badge":"Info"}],"recommendations":["r1","r2","r3","r4","r5"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Mobile Transfers"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["GL Report","Trial Balance","Wallet Liability Summary","Transaction Register","Revenue Summary","Commission Summary","Settlement Summary","Settlement Aging","High Value Transactions Report"],"missing":["Float Account Balance Report","Sanctions Screening Report","SAR Log","Customer Onboarding Report","API Error Report"],"warning":["Dormant Compliance Report (incomplete)","Settlement Reconciliation (partial)"]},"standardChecklist":[{"item":"All 12 WaaS categories covered","status":"warn"},{"item":"GL reconciliation present","status":"pass"},{"item":"Settlement aging attached","status":"pass"},{"item":"Dormant compliance complete","status":"fail"},{"item":"SAP batch report included","status":"fail"},{"item":"Commission reconciliation attached","status":"warn"},{"item":"Audit trail complete","status":"pass"}]}`;
   try{
-    const aiRaw = await callAI(prompt, 1000);
-    const jStart = aiRaw.indexOf('{');
-    const jEnd = aiRaw.lastIndexOf('}');
-    let cleanRaw = (jStart >= 0 && jEnd > jStart) ? aiRaw.slice(jStart, jEnd+1) : aiRaw.replace(/```json|```/g,'').trim();
-    analysisResult = JSON.parse(cleanRaw);
+    analysisResult = await callAIJson(prompt, 1000);
   }catch{analysisResult=demoData(currentRole);}
   clearInterval(progressTimer);
   document.getElementById('progress-fill').style.width='100%';
@@ -2417,35 +2413,8 @@ Respond ONLY with valid JSON (no markdown):
 
     toast('Generating AI insights — please wait...');
 
-    const aiResponse = await callAI(prompt, 1000);
-    // Aggressively extract JSON - find first { to last }
-    let raw = aiResponse;
-    const jsonStart = raw.indexOf('{');
-    const jsonEnd = raw.lastIndexOf('}');
-    if (jsonStart >= 0 && jsonEnd > jsonStart) {
-      raw = raw.slice(jsonStart, jsonEnd + 1);
-    } else {
-      raw = raw.replace(/```json|```/g,'').trim();
-    }
-
-    let result;
-    try {
-      result = JSON.parse(raw);
-    } catch(parseErr) {
-      // AI responded but not in JSON — build a basic result from the text
-      console.log('JSON parse failed, building from text response');
-      result = {
-        role: currentRole,
-        summary: aiResponse.slice(0, 300).replace(/[\n]+/g,' '),
-        kpis: [],
-        swot: { strengths:['See full analysis below'], weaknesses:[], opportunities:[], threats:[] },
-        insights: [{ title:'AI Analysis', body: aiResponse.slice(0,500), type:'info', badge:'Info' }],
-        recommendations: ['Review the full AI response for detailed recommendations'],
-        trends: { revenue:{labels:[],data:[],growth:'—',topProduct:'—'}, wallets:{labels:[],active:[],dormant:[]}, transactions:{labels:[],success:[],failed:[],pending:[]}, compliance:{labels:[],highValue:[],dormantFlags:[]} },
-        gapChecker: { present:[], missing:[], warning:[] },
-        standardChecklist: []
-      };
-    }
+    // Use server-side JSON parsing for reliability
+    const result = await callAIJson(prompt, 1000);
     result.role = currentRole;
     analysisResult = result;
     populateAll(result);
@@ -2594,12 +2563,29 @@ async function sendReminder(id, title) {
 async function callAI(prompt, maxTokens=1000) {
   try {
     const result = await api('/api/analyse', 'POST', { prompt, maxTokens });
-    if (result.text) return result.text;
     if (result.error) throw new Error(result.error);
+    if (result.text) return result.text;
     throw new Error('Empty response from server');
   } catch(serverErr) {
     console.error('callAI error:', serverErr.message);
     throw serverErr;
+  }
+}
+
+async function callAIJson(prompt, maxTokens=1000) {
+  try {
+    const result = await api('/api/analyse', 'POST', { prompt, maxTokens, expectJson: true });
+    if (result.error) throw new Error(result.error);
+    if (result.parsed) return result.parsed; // Server already parsed JSON
+    // Fallback: parse client-side
+    const text = result.text || '';
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) return JSON.parse(text.slice(start, end+1));
+    throw new Error('No valid JSON in response');
+  } catch(e) {
+    console.error('callAIJson error:', e.message);
+    throw e;
   }
 }
 
