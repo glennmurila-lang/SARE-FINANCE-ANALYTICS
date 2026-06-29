@@ -2450,8 +2450,8 @@ Respond ONLY with valid JSON (no markdown):
     analysisResult = result;
     populateAll(result);
     gotoView('swot');
-    saveToHistory(result, sub.scheduleTitle + ' (submitted by ' + sub.submittedByName + ')');
     toast('Insights generated from ' + sub.scheduleTitle);
+    try { saveToHistory(result, sub.scheduleTitle + ' (submitted by ' + sub.submittedByName + ')'); } catch(he){}
 
   } catch(e) {
     console.error('viewSubmissionInsights error:', e);
@@ -2592,16 +2592,13 @@ async function sendReminder(id, title) {
 
 // ── Central AI call — routes through server proxy ────────────────────────────
 async function callAI(prompt, maxTokens=1000) {
-  // Try server proxy first (secure, uses server-side API key)
   try {
     const result = await api('/api/analyse', 'POST', { prompt, maxTokens });
     if (result.text) return result.text;
-    throw new Error(result.error || 'No response');
+    if (result.error) throw new Error(result.error);
+    throw new Error('Empty response from server');
   } catch(serverErr) {
-    // If server proxy fails, show clear message
-    if (serverErr.message.includes('not configured')) {
-      throw new Error('AI service not configured — please add ANTHROPIC_API_KEY to Render environment variables');
-    }
+    console.error('callAI error:', serverErr.message);
     throw serverErr;
   }
 }
