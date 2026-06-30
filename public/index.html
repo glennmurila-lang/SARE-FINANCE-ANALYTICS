@@ -3186,7 +3186,9 @@ function renderChatThread(thread) {
   // Report indicator
   const indicator = document.getElementById('chat-report-indicator');
   if (thread.report) {
-    indicator.innerHTML = `<span class="chat-report-badge">📎 ${thread.report.filename} <span style="cursor:pointer;margin-left:4px" onclick="event.stopPropagation();detachChatReport()">×</span></span>`;
+    indicator.innerHTML = `
+      <span class="chat-report-badge">📎 ${thread.report.filename} <span style="cursor:pointer;margin-left:4px;font-weight:700" onclick="event.stopPropagation();detachChatReport()" title="Remove this report">×</span></span>
+      <button class="topbar-btn" style="margin-left:8px;padding:5px 12px;font-size:11px" onclick="document.getElementById('chat-file-input').click()">🔄 Swap report</button>`;
     document.getElementById('chat-drop-zone').style.display = 'none';
     document.getElementById('chat-suggestions').style.display = 'flex';
   } else {
@@ -3235,9 +3237,25 @@ async function attachChatReport(file) {
   const dataText = await readFile(file);
   const thread = chatThreads.find(t => t.id === currentChatThreadId);
   if (!thread) return;
+
+  const wasSwap = !!thread.report && thread.report.filename !== file.name;
+  const previousFilename = thread.report?.filename;
+
   thread.report = { filename: file.name, dataText: dataText.slice(0,6000) };
-  thread.title = file.name.replace(/\.[^.]+$/, '');
+  if (thread.title === 'New conversation' || !wasSwap) {
+    thread.title = file.name.replace(/\.[^.]+$/, '');
+  }
   currentChatReport = thread.report;
+
+  // Add a visible system note in the conversation when swapping mid-chat
+  if (wasSwap && thread.messages.length > 0) {
+    thread.messages.push({
+      role: 'assistant',
+      content: `📎 **Report switched.** I'm now looking at **${file.name}** instead of ${previousFilename}. Previous answers in this conversation referred to the old file — ask me again if you need anything re-checked against this new report.`,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   saveChatThreadsToStorage();
   renderChatThreadList();
   renderChatThread(thread);
