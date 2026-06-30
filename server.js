@@ -457,12 +457,13 @@ app.post('/api/analyse-submission', auth, async (req, res) => {
     }
     const { title, submitter, department, role, data, skipCache } = req.body;
 
-    const prompt = `Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
+    const prompt = `You are an elite business intelligence analyst. Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
 
 Report: ${title}
 Submitted by: ${submitter}
 Department: ${department}
-Data summary: ${data}
+Data:
+${data}
 
 CRITICAL ACCURACY RULES:
 1. Base every number strictly on the data provided above - never estimate or invent figures
@@ -470,15 +471,17 @@ CRITICAL ACCURACY RULES:
 3. Be literal and consistent - the same data should always produce the same numbers
 4. If a figure cannot be determined from the data, say "Not available" rather than guessing
 
+ANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact. Avoid generic statements - be specific to this data.
+
 Return this exact JSON structure with real values based on the data:
-{"role":"${role}","summary":"Two sentence summary of key findings from this report","kpis":[{"label":"Total Amount","value":"KES X","delta":"+X%","positive":true},{"label":"Outstanding Items","value":"X","delta":"+X","positive":false},{"label":"Overdue Amount","value":"KES X","delta":"+X%","positive":false}],"swot":{"strengths":["Strength based on data 1","Strength 2"],"weaknesses":["Weakness from data 1","Weakness 2"],"opportunities":["Opportunity 1","Opportunity 2"],"threats":["Threat 1","Threat 2"]},"insights":[{"title":"Key Finding","body":"Specific insight from the data with numbers","type":"warning","badge":"Watch"},{"title":"Action Required","body":"What needs to be done based on findings","type":"danger","badge":"Critical"}],"recommendations":["Specific action 1 based on data","Action 2","Action 3"]}`;
+{"role":"${role}","summary":"A detailed 3-sentence summary of the overall position, the most important finding, and what needs attention","kpis":[{"label":"Metric name from data","value":"KES X or relevant unit","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with the exact figure that proves it","Second strength with evidence"],"weaknesses":["Specific weakness with the exact figure and why it matters","Second weakness with evidence and impact"],"opportunities":["Specific opportunity, quantified where possible","Second opportunity with rationale"],"threats":["Specific threat with magnitude/likelihood","Second threat with context"]},"insights":[{"title":"Specific finding title naming the actual issue","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"danger","badge":"Critical"},{"title":"Third specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe and expected outcome","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
 
     const cacheKey = hashPrompt(prompt + '|submission|' + role);
 
     const callFn = async () => {
       const message = await anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1500,
+        max_tokens: 2000,
         temperature: 0,
         messages: [{ role: 'user', content: prompt }]
       });
