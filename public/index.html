@@ -395,6 +395,21 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .dash-alert.red{background:var(--red-light);border:1px solid #FECACA;color:var(--red)}
 .dash-alert.amber{background:var(--amber-light);border:1px solid #FDE68A;color:var(--amber)}
 .dash-alert.green{background:var(--green-light);border:1px solid #A7F3D0;color:var(--green)}
+
+.week-group{margin-bottom:16px}
+.week-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,var(--navy),var(--navy-soft));border-radius:var(--radius-sm);cursor:pointer;margin-bottom:8px;transition:all 0.2s}
+.week-header:hover{opacity:0.95}
+.week-header-left{display:flex;align-items:center;gap:10px}
+.week-badge{background:var(--gold);color:var(--navy);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.week-label{font-size:13px;font-weight:700;color:#fff}
+.week-dates{font-size:11px;color:rgba(255,255,255,0.5)}
+.week-count{font-size:11px;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.1);padding:3px 10px;border-radius:20px}
+.week-toggle{color:rgba(255,255,255,0.6);font-size:14px;transition:transform 0.2s}
+.week-toggle.collapsed{transform:rotate(-90deg)}
+.week-content{display:block}
+.week-content.collapsed{display:none}
+.week-jump{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.week-jump select{padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;background:#fff;cursor:pointer}
 </style>
 </head>
 <body>
@@ -828,10 +843,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
         <div class="card" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
             <div class="card-title" style="margin:0">📚 Analysis history</div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select id="hist-filter" class="form-select" style="width:160px;padding:7px 10px;font-size:12px" onchange="loadHistory()">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="hist-filter" class="form-select" style="width:150px;padding:7px 10px;font-size:12px" onchange="loadHistory()">
                 <option value="">All departments</option>
               </select>
+              <select id="hist-week-jump" class="form-select" style="width:170px;padding:7px 10px;font-size:12px" onchange="jumpToWeek()">
+                <option value="">Jump to week...</option>
+              </select>
+              <button class="topbar-btn" onclick="expandAllWeeks()">⊞ Expand all</button>
+              <button class="topbar-btn" onclick="collapseAllWeeks()">⊟ Collapse all</button>
               <button class="topbar-btn" onclick="openCompare()">⚖ Compare two</button>
             </div>
           </div>
@@ -1839,7 +1859,6 @@ async function loadHistory() {
     const filter = document.getElementById('hist-filter')?.value || '';
     const filtered = filter ? records.filter(r => r.department === filter) : records;
 
-    // Populate filter
     const depts = [...new Set(records.map(r => r.department).filter(Boolean))];
     const sel = document.getElementById('hist-filter');
     if (sel) {
@@ -1847,7 +1866,6 @@ async function loadHistory() {
       sel.innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');
     }
 
-    // Populate query history select
     const qsel = document.getElementById('query-history-select');
     if (qsel) {
       qsel.innerHTML = '<option value="">Type your own question or select a previous analysis</option>' +
@@ -1861,14 +1879,37 @@ async function loadHistory() {
     }
     document.getElementById('history-empty').style.display = 'none';
 
-    document.getElementById('history-list').innerHTML = filtered.map(r => {
-      const date = new Date(r.createdAt).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-      const kpiPreview = (r.kpis||[]).slice(0,3).map(k => `
+    // Group records by ISO week
+    const weekGroups = {};
+    filtered.forEach(r => {
+      const wk = getISOWeekInfo(new Date(r.createdAt));
+      const key = wk.year + '-W' + String(wk.week).padStart(2,'0');
+      if (!weekGroups[key]) weekGroups[key] = { ...wk, key, records: [] };
+      weekGroups[key].records.push(r);
+    });
+
+    // Sort weeks descending (most recent first)
+    const sortedWeeks = Object.values(weekGroups).sort((a,b) => b.year - a.year || b.week - a.week);
+
+    // Populate week jump dropdown
+    const jumpSel = document.getElementById('hist-week-jump');
+    if (jumpSel) {
+      jumpSel.innerHTML = '<option value="">Jump to week...</option>' +
+        sortedWeeks.map(w => `<option value="week-${w.key}">Week ${w.week}, ${w.year} (${w.records.length} report${w.records.length!==1?'s':''})</option>`).join('');
+    }
+
+    // Render week groups
+    document.getElementById('history-list').innerHTML = sortedWeeks.map((w, idx) => {
+      const isFirstWeek = idx === 0;
+      const kpiPreview = (r) => (r.kpis||[]).slice(0,3).map(k => `
         <div class="hist-kpi">
           <div class="hist-kpi-label">${k.label}</div>
           <div class="hist-kpi-value">${k.value} <span style="font-size:10px;font-weight:600;color:${k.positive?'var(--green)':'var(--red)'}">${k.delta}</span></div>
         </div>`).join('');
-      return `
+
+      const recordCards = w.records.map(r => {
+        const date = new Date(r.createdAt).toLocaleDateString('en-GB', {weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+        return `
         <div class="hist-card">
           <div class="hist-header">
             <div>
@@ -1881,7 +1922,7 @@ async function loadHistory() {
               <button class="tbl-btn red" onclick="deleteHistory('${r.id||r._id}')">Delete</button>
             </div>
           </div>
-          <div class="hist-kpis">${kpiPreview}</div>
+          <div class="hist-kpis">${kpiPreview(r)}</div>
           <div style="font-size:12px;color:var(--gray-600);line-height:1.5">${r.summary||''}</div>
           <div class="hist-actions">
             <button class="tbl-btn" onclick="openNotes('${r.id||r._id}')">📝 Notes</button>
@@ -1891,11 +1932,76 @@ async function loadHistory() {
             <button class="tbl-btn" onclick="loadIntoQuery('${r.id||r._id}');selectReportStyleAndBuild('board')">🏛 Board Report</button>
           </div>
         </div>`;
+      }).join('');
+
+      return `
+        <div class="week-group" id="week-${w.key}">
+          <div class="week-header" onclick="toggleWeek('${w.key}')">
+            <div class="week-header-left">
+              <span class="week-toggle ${isFirstWeek?'':'collapsed'}" id="week-toggle-${w.key}">▼</span>
+              <span class="week-badge">Week ${w.week}</span>
+              <span class="week-label">${w.year}</span>
+              <span class="week-dates">${w.startLabel} – ${w.endLabel}</span>
+            </div>
+            <span class="week-count">${w.records.length} report${w.records.length!==1?'s':''}</span>
+          </div>
+          <div class="week-content ${isFirstWeek?'':'collapsed'}" id="week-content-${w.key}">
+            ${recordCards}
+          </div>
+        </div>`;
     }).join('');
+
   } catch(e) {
     document.getElementById('history-list').innerHTML='';
     document.getElementById('history-empty').style.display='block';
     if(e.message&&!e.message.includes('401'))toast('History error: '+e.message);
+  }
+}
+
+// ── ISO week helper ────────────────────────────────────────────────────────────
+function getISOWeekInfo(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  // Calculate week start (Monday) and end (Sunday)
+  const monday = new Date(date);
+  const day = monday.getDay() || 7;
+  monday.setDate(monday.getDate() - day + 1);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (dt) => dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  return { year: d.getUTCFullYear(), week, startLabel: fmt(monday), endLabel: fmt(sunday) };
+}
+
+function toggleWeek(key) {
+  const content = document.getElementById('week-content-' + key);
+  const toggle = document.getElementById('week-toggle-' + key);
+  content.classList.toggle('collapsed');
+  toggle.classList.toggle('collapsed');
+}
+
+function expandAllWeeks() {
+  document.querySelectorAll('.week-content').forEach(el => el.classList.remove('collapsed'));
+  document.querySelectorAll('.week-toggle').forEach(el => el.classList.remove('collapsed'));
+}
+
+function collapseAllWeeks() {
+  document.querySelectorAll('.week-content').forEach(el => el.classList.add('collapsed'));
+  document.querySelectorAll('.week-toggle').forEach(el => el.classList.add('collapsed'));
+}
+
+function jumpToWeek() {
+  const val = document.getElementById('hist-week-jump').value;
+  if (!val) return;
+  const el = document.getElementById(val);
+  if (el) {
+    // Expand it first
+    const key = val.replace('week-','');
+    document.getElementById('week-content-'+key)?.classList.remove('collapsed');
+    document.getElementById('week-toggle-'+key)?.classList.remove('collapsed');
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
   }
 }
 
@@ -2633,18 +2739,31 @@ async function loadDashboard() {
         <span style="margin-left:auto;font-size:11px;font-weight:600;opacity:0.7">View →</span>
       </div>`).join('');
 
-    // Recent analyses
-    const recent = history.slice(0,5);
-    document.getElementById('dash-recent-analyses').innerHTML = recent.length === 0
+    // Recent analyses - dedupe by title, show only most recent of each, group label by week
+    const seenTitles = new Set();
+    const dedupedRecent = [];
+    for (const r of history) {
+      const baseTitle = (r.filename||'Analysis').replace(/\s*\(submitted by.*?\)/i,'').trim();
+      if (!seenTitles.has(baseTitle)) {
+        seenTitles.add(baseTitle);
+        dedupedRecent.push(r);
+      }
+      if (dedupedRecent.length >= 5) break;
+    }
+    document.getElementById('dash-recent-analyses').innerHTML = dedupedRecent.length === 0
       ? '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No analyses yet — run your first one</div>'
-      : recent.map(r => `
+      : dedupedRecent.map(r => {
+          const wk = getISOWeekInfo(new Date(r.createdAt));
+          const baseTitle = (r.filename||'Analysis').replace(/\s*\(submitted by.*?\)/i,'').trim();
+          return `
         <div class="dash-activity-item" style="cursor:pointer" onclick="viewHistoryRecord('${r.id||r._id}')">
           <div class="dash-activity-dot" style="background:var(--blue)"></div>
-          <div>
-            <div class="dash-activity-text"><strong>${r.filename||'Analysis'}</strong> — ${(r.perspective||'').toUpperCase()}</div>
-            <div class="dash-activity-time">${r.userName||'Unknown'} · ${r.department||'—'} · ${new Date(r.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+          <div style="flex:1">
+            <div class="dash-activity-text"><strong>${baseTitle}</strong> — ${(r.perspective||'').toUpperCase()}</div>
+            <div class="dash-activity-time">${r.userName||'Unknown'} · ${r.department||'—'} · Week ${wk.week}</div>
           </div>
-        </div>`).join('');
+        </div>`;
+        }).join('');
 
     // Department activity
     const deptColors = ['#1B6FE4','#0DAF6A','#D97706','#E53E3E','#534AB7','#0891B2','#DB2777'];
