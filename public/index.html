@@ -1391,9 +1391,19 @@ async function readFile(file){
       try{
         const wb=XLSX.read(e.target.result,{type:'array'});
         let text=`FILE: ${file.name}\n`;
-        wb.SheetNames.forEach(sn=>{const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1});text+=`SHEET: ${sn}\n`;rows.slice(0,100).forEach(r=>{text+=r.join('\t')+'\n';});});
-        resolve(text.slice(0,5500));
-      }catch{resolve(`[File: ${file.name}]`);}
+        wb.SheetNames.forEach(sn=>{
+          const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1});
+          text+=`SHEET: ${sn} (${rows.length} rows)\n`;
+          rows.forEach(r=>{text+=r.join('\t')+'\n';});
+        });
+        // Generous cap - only trims truly oversized files, logs if it happens
+        const MAX_CHARS = 40000;
+        if (text.length > MAX_CHARS) {
+          console.warn(`File ${file.name} truncated from ${text.length} to ${MAX_CHARS} chars`);
+          text = text.slice(0, MAX_CHARS) + '\n[NOTE: file truncated - very large file, some rows omitted]';
+        }
+        resolve(text);
+      }catch(err){console.error('Excel parse error:',err.message);resolve(`[File: ${file.name} - could not parse]`);}
     };
     reader.readAsArrayBuffer(file);
   });
@@ -1426,7 +1436,7 @@ ROLE: ${currentRole.toUpperCase()} — ${ROLE_FOCUS[currentRole]}
 ADDITIONAL CONTEXT FROM USER: ${document.getElementById('ctx-input').value||'None provided.'}
 
 REPORT DATA:
-${dataText.slice(0,7500)}
+${dataText.slice(0,35000)}
 
 ANALYSIS DEPTH REQUIRED: Produce a thorough, specific, evidence-based analysis — not generic statements. Every insight and SWOT point must reference an actual number, trend, or fact from the data above. Avoid vague language like "could be better" — instead state the specific figure, the specific cause, and the specific magnitude of impact.
 
@@ -3241,7 +3251,7 @@ async function attachChatReport(file) {
   const wasSwap = !!thread.report && thread.report.filename !== file.name;
   const previousFilename = thread.report?.filename;
 
-  thread.report = { filename: file.name, dataText: dataText.slice(0,6000) };
+  thread.report = { filename: file.name, dataText: dataText };
   if (thread.title === 'New conversation' || !wasSwap) {
     thread.title = file.name.replace(/\.[^.]+$/, '');
   }
