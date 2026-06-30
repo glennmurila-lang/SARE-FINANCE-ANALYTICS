@@ -43,10 +43,31 @@ function parseAIJson(text) {
   try {
     return JSON.parse(jsonStr);
   } catch (parseErr) {
-    // Use jsonrepair to fix common issues: unescaped quotes, trailing commas, etc.
     const repaired = jsonrepair(jsonStr);
     return JSON.parse(repaired);
   }
+}
+
+// ── Deterministic response cache ──────────────────────────────────────────────
+// Same input data + same prompt = same cached output. Prevents inconsistent
+// numbers when the same report is analysed twice by different people.
+const crypto = require('crypto');
+const aiCacheDb = Datastore.create({ filename: path.join(__dirname, 'data', 'ai_cache.db'), autoload: true });
+
+function hashPrompt(str) {
+  return crypto.createHash('sha256').update(str).digest('hex');
+}
+
+async function getCachedOrCall(cacheKey, callFn) {
+  // Check cache first (valid for 24 hours - data doesn't change, but allows refresh if needed)
+  const cached = await aiCacheDb.findOne({ key: cacheKey });
+  if (cached && (Date.now() - new Date(cached.createdAt).getTime()) < 24*60*60*1000) {
+    console.log('[CACHE HIT]', cacheKey.slice(0,12));
+    return { ...cached.result, fromCache: true };
+  }
+  const result = await callFn();
+  await aiCacheDb.update({ key: cacheKey }, { $set: { key: cacheKey, result, createdAt: new Date() } }, { upsert: true });
+  return result;
 }
 
 // ── Email templates ───────────────────────────────────────────────────────────
@@ -394,25 +415,34 @@ app.post('/api/analyse', auth, async (req,res) => {
     if (!process.env.ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to environment variables.' });
     }
-    const { prompt, maxTokens, expectJson } = req.body;
+    const { prompt, maxTokens, expectJson, skipCache } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt required' });
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: maxTokens || 1500,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    const text = (message.content||[]).map(b=>b.text||'').join('');
 
-    if (expectJson) {
-      try {
-        const parsed = parseAIJson(text);
-        return res.json({ text, parsed, success: true });
-      } catch(parseErr) {
-        console.error('JSON parse/repair failed:', parseErr.message);
-        return res.json({ text, parseError: parseErr.message });
+    const consistencyInstruction = '\n\nCRITICAL ACCURACY RULES: (1) Base every number strictly on the data provided - never estimate or round creatively. (2) Show your arithmetic mentally before stating a total. (3) If the same calculation could be done two ways, use the most literal sum of the raw figures given. (4) Do not vary your phrasing or numbers between requests for identical data - be consistent and literal.';
+    const fullPrompt = prompt + consistencyInstruction;
+    const cacheKey = hashPrompt(fullPrompt + '|' + (maxTokens||1500) + '|' + (expectJson?'json':'text'));
+
+    const callFn = async () => {
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: maxTokens || 1500,
+        temperature: 0,
+        messages: [{ role: 'user', content: fullPrompt }]
+      });
+      const text = (message.content||[]).map(b=>b.text||'').join('');
+      if (expectJson) {
+        try {
+          const parsed = parseAIJson(text);
+          return { text, parsed, success: true };
+        } catch(parseErr) {
+          return { text, parseError: parseErr.message };
+        }
       }
-    }
-    res.json({ text, usage: message.usage });
+      return { text, usage: message.usage };
+    };
+
+    const result = skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
+    res.json(result);
   } catch(e) {
     console.error('Analyse error:', e.message);
     res.status(500).json({ error: e.message });
@@ -425,7 +455,7 @@ app.post('/api/analyse-submission', auth, async (req, res) => {
     if (!process.env.ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to Render environment variables.' });
     }
-    const { title, submitter, department, role, data } = req.body;
+    const { title, submitter, department, role, data, skipCache } = req.body;
 
     const prompt = `Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
 
@@ -434,36 +464,46 @@ Submitted by: ${submitter}
 Department: ${department}
 Data summary: ${data}
 
+CRITICAL ACCURACY RULES:
+1. Base every number strictly on the data provided above - never estimate or invent figures
+2. If you calculate a total, sum the exact raw figures shown - do not round creatively
+3. Be literal and consistent - the same data should always produce the same numbers
+4. If a figure cannot be determined from the data, say "Not available" rather than guessing
+
 Return this exact JSON structure with real values based on the data:
 {"role":"${role}","summary":"Two sentence summary of key findings from this report","kpis":[{"label":"Total Amount","value":"KES X","delta":"+X%","positive":true},{"label":"Outstanding Items","value":"X","delta":"+X","positive":false},{"label":"Overdue Amount","value":"KES X","delta":"+X%","positive":false}],"swot":{"strengths":["Strength based on data 1","Strength 2"],"weaknesses":["Weakness from data 1","Weakness 2"],"opportunities":["Opportunity 1","Opportunity 2"],"threats":["Threat 1","Threat 2"]},"insights":[{"title":"Key Finding","body":"Specific insight from the data with numbers","type":"warning","badge":"Watch"},{"title":"Action Required","body":"What needs to be done based on findings","type":"danger","badge":"Critical"}],"recommendations":["Specific action 1 based on data","Action 2","Action 3"]}`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }]
-    });
+    const cacheKey = hashPrompt(prompt + '|submission|' + role);
 
-    const text = (message.content || []).map(b => b.text || '').join('');
-    let result;
-    try {
-      result = parseAIJson(text);
-    } catch(parseErr) {
-      console.error('analyse-submission parse failed:', parseErr.message);
-      return res.status(500).json({ error: 'AI response could not be parsed: ' + parseErr.message });
-    }
+    const callFn = async () => {
+      const message = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        temperature: 0,
+        messages: [{ role: 'user', content: prompt }]
+      });
+      const text = (message.content || []).map(b => b.text || '').join('');
+      let result;
+      try {
+        result = parseAIJson(text);
+      } catch(parseErr) {
+        throw new Error('AI response could not be parsed: ' + parseErr.message);
+      }
+      if (!result.trends) {
+        result.trends = {
+          revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
+          wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
+          transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
+          compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
+        };
+      }
+      if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
+      if (!result.standardChecklist) result.standardChecklist = [];
+      return { result, success: true };
+    };
 
-    if (!result.trends) {
-      result.trends = {
-        revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
-        wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
-        transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
-        compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
-      };
-    }
-    if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
-    if (!result.standardChecklist) result.standardChecklist = [];
-
-    res.json({ result, success: true });
+    const finalResult = skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
+    res.json(finalResult);
   } catch(e) {
     console.error('analyse-submission error:', e.message);
     res.status(500).json({ error: e.message });
