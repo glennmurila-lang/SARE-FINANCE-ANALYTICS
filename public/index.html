@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{--navy:#0B1929;--navy-mid:#122038;--navy-soft:#1a2e4a;--blue:#1B6FE4;--blue-light:#EBF2FF;--blue-mid:#4D9AFF;--gold:#D4A843;--green:#0DAF6A;--green-light:#E6FAF2;--red:#E53E3E;--red-light:#FFF0F0;--amber:#D97706;--amber-light:#FFFBEB;--gray-50:#F9FAFB;--gray-100:#F3F4F6;--gray-200:#E5E7EB;--gray-400:#9CA3AF;--gray-600:#6B7280;--gray-800:#1F2937;--white:#FFFFFF;--shadow-sm:0 1px 3px rgba(0,0,0,0.08);--shadow-md:0 4px 16px rgba(0,0,0,0.10);--shadow-lg:0 12px 40px rgba(0,0,0,0.14);--radius:12px;--radius-sm:8px;--radius-lg:16px}
@@ -670,7 +671,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
             <div class="drop-title">Drop your Excel or CSV reports here</div>
             <div class="drop-sub">.xlsx · .xls · .csv · PDF summaries · Multiple files</div>
           </div>
-          <input type="file" id="file-input" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleFiles(this.files)">
+          <input type="file" id="file-input" accept=".xlsx,.xls,.csv,.pdf" multiple style="display:none" onchange="handleFiles(this.files)">
           <div style="margin-top:16px">
             <div class="section-label">Additional context (optional)</div>
             <textarea id="ctx-input" style="width:100%;min-height:68px;font-size:13px;padding:10px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit;color:var(--gray-800);background:#fff;resize:vertical;outline:none" placeholder="e.g. Focus on Q2 sales performance, flag cost overruns, prepare for board review…" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--gray-200)'"></textarea>
@@ -1195,11 +1196,47 @@ function handleDrop(e){e.preventDefault();document.getElementById('drop-zone').c
 function handleFiles(fileList){
   uploadedFiles=Array.from(fileList);
   const chips=document.getElementById('file-chips');
-  chips.innerHTML=uploadedFiles.map((f,i)=>`<div class="file-chip"><span style="font-size:20px">📊</span><div style="flex:1"><div class="file-chip-name">${f.name}</div><div style="font-size:11px;color:var(--gray-400)">${(f.size/1024).toFixed(0)} KB</div></div><span style="cursor:pointer;color:var(--gray-400);font-size:18px" onclick="removeFile(${i})">×</span></div>`).join('');
+  chips.innerHTML=uploadedFiles.map((f,i)=>{
+    const isPdf = f.name.toLowerCase().endsWith('.pdf');
+    const icon = isPdf ? '📄' : '📊';
+    return `<div class="file-chip"><span style="font-size:20px">${icon}</span><div style="flex:1"><div class="file-chip-name">${f.name}</div><div style="font-size:11px;color:var(--gray-400)">${(f.size/1024).toFixed(0)} KB${isPdf?' · PDF':''}</div></div><span style="cursor:pointer;color:var(--gray-400);font-size:18px" onclick="removeFile(${i})">×</span></div>`;
+  }).join('');
 }
 function removeFile(i){uploadedFiles.splice(i,1);handleFiles(uploadedFiles);}
 
 async function readFile(file){
+  const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
+  if (isPdf) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          if (!window.pdfjsLib) {
+            resolve(`FILE: ${file.name}\n[PDF reader not available - please convert to Excel/CSV or try again]`);
+            return;
+          }
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          const typedArray = new Uint8Array(e.target.result);
+          const pdf = await window.pdfjsLib.getDocument({ data: typedArray }).promise;
+          let text = `FILE: ${file.name}\n`;
+          const maxPages = Math.min(pdf.numPages, 15); // limit to first 15 pages
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map(item => item.str).join(' ');
+            text += `PAGE ${i}: ${pageText}\n`;
+          }
+          resolve(text.slice(0, 6000));
+        } catch(err) {
+          console.error('PDF parse error:', err.message);
+          resolve(`FILE: ${file.name}\n[Could not extract text from PDF - it may be scanned/image-based]`);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
   return new Promise(resolve=>{
     const reader=new FileReader();
     reader.onload=e=>{
@@ -2450,7 +2487,7 @@ async function loadMyReports() {
             <div style="font-size:13px;font-weight:600;color:var(--amber)">Click to upload your report</div>
             <div style="font-size:11px;color:#92400E;margin-top:4px">Excel (.xlsx) or CSV accepted</div>
           </div>
-          <input type="file" id="report-upload-${s.id||s._id}" accept=".xlsx,.xls,.csv" style="display:none" onchange="submitReport('${s.id||s._id}',this)">
+          <input type="file" id="report-upload-${s.id||s._id}" accept=".xlsx,.xls,.csv,.pdf" style="display:none" onchange="submitReport('${s.id||s._id}',this)">
           <div style="margin-top:8px">
             <input type="text" id="report-notes-${s.id||s._id}" class="form-input" placeholder="Add notes for this submission (optional)" style="font-size:12px;padding:8px 12px">
           </div>
