@@ -1111,6 +1111,26 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
             <div class="metric-card" style="background:var(--amber-light)"><div class="metric-label">Due this week</div><div class="metric-value" id="sch-week">—</div></div>
           </div>
         </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div class="section-label" style="margin:0">Filter by:</div>
+            <select id="sch-owner-filter" class="form-select" style="width:200px;padding:7px 10px;font-size:12px" onchange="loadSchedules()">
+              <option value="">All report owners</option>
+            </select>
+            <select id="sch-status-filter" class="form-select" style="width:160px;padding:7px 10px;font-size:12px" onchange="loadSchedules()">
+              <option value="">All statuses</option>
+              <option value="overdue">🔴 Overdue only</option>
+              <option value="soon">🟡 Due soon (3 days)</option>
+              <option value="ok">🟢 On track</option>
+            </select>
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <button class="topbar-btn" id="sch-view-flat" onclick="setScheduleView('flat')">☰ List</button>
+              <button class="topbar-btn primary" id="sch-view-grouped" onclick="setScheduleView('grouped')">👤 By owner</button>
+            </div>
+          </div>
+        </div>
+
         <div id="schedules-empty" class="empty-state"><span class="empty-icon">📅</span><div class="empty-title">No schedules yet</div><div class="empty-state-body">Create your first report schedule to start the workflow.</div></div>
         <div id="schedules-list"></div>
       </div>
@@ -2495,7 +2515,7 @@ let allSchedules = [];
 
 // ── Load schedules ────────────────────────────────────────────────────────────
 async function loadSchedules() {
-  // Show empty state immediately while loading
+  // Show loading immediately
   document.getElementById('schedules-empty').style.display='none';
   document.getElementById('schedules-list').innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);font-size:13px">Loading schedules...</div>';
   document.getElementById('sch-total').textContent='—';
@@ -2513,19 +2533,45 @@ async function loadSchedules() {
     document.getElementById('sch-week').textContent = week.length;
     if (overdue.length > 0) document.getElementById('pending-badge').style.display = 'flex';
 
-    // Populate workflow filter
+    // Populate owner filter dropdown
+    const owners = [...new Set(schedules.map(s => s.ownerName).filter(Boolean))].sort();
+    const ownerSel = document.getElementById('sch-owner-filter');
+    if (ownerSel) {
+      const cur = ownerSel.value;
+      ownerSel.innerHTML = '<option value="">All report owners</option>' + owners.map(o => `<option value="${o}" ${o===cur?'selected':''}>${o}</option>`).join('');
+    }
+
+    // Populate workflow filter too
     const wf = document.getElementById('workflow-filter');
     if (wf) wf.innerHTML = '<option value="">All schedules</option>' + schedules.map(s => `<option value="${s.id||s._id}">${s.title}</option>`).join('');
 
-    if (schedules.length === 0) {
+    // Apply filters
+    const ownerFilter = document.getElementById('sch-owner-filter')?.value || '';
+    const statusFilter = document.getElementById('sch-status-filter')?.value || '';
+
+    let filtered = schedules;
+    if (ownerFilter) filtered = filtered.filter(s => s.ownerName === ownerFilter);
+    if (statusFilter) {
+      filtered = filtered.filter(s => {
+        const daysLeft = Math.ceil((new Date(s.nextDue) - now) / (1000*60*60*24));
+        if (statusFilter === 'overdue') return daysLeft < 0;
+        if (statusFilter === 'soon') return daysLeft >= 0 && daysLeft <= 3;
+        if (statusFilter === 'ok') return daysLeft > 3;
+        return true;
+      });
+    }
+
+    if (filtered.length === 0) {
       document.getElementById('schedules-empty').style.display = 'block';
       document.getElementById('schedules-list').innerHTML = '';
       return;
     }
     document.getElementById('schedules-empty').style.display = 'none';
+
     const freqLabels = { daily:'Daily', weekly:'Weekly', monthly:'Monthly', quarterly:'Quarterly', annually:'Annual' };
     const rtLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard', investor:'Investor Brief' };
-    document.getElementById('schedules-list').innerHTML = schedules.map(s => {
+
+    function renderScheduleCard(s) {
       const due = new Date(s.nextDue);
       const daysLeft = Math.ceil((due - now) / (1000*60*60*24));
       const isOverdue = daysLeft < 0;
@@ -2553,7 +2599,47 @@ async function loadSchedules() {
           <button class="tbl-btn red" onclick="deleteSchedule('${s.id||s._id}')">Delete</button>
         </div>
       </div>`;
-    }).join('');
+    }
+
+    const viewMode = window._scheduleViewMode || 'grouped';
+
+    if (viewMode === 'grouped') {
+      // Group by owner
+      const byOwner = {};
+      filtered.forEach(s => {
+        const owner = s.ownerName || 'Unassigned';
+        if (!byOwner[owner]) byOwner[owner] = [];
+        byOwner[owner].push(s);
+      });
+      // Sort owners by who has the most overdue first
+      const ownerEntries = Object.entries(byOwner).sort((a,b) => {
+        const aOverdue = a[1].filter(s => new Date(s.nextDue) < now).length;
+        const bOverdue = b[1].filter(s => new Date(s.nextDue) < now).length;
+        return bOverdue - aOverdue;
+      });
+
+      document.getElementById('schedules-list').innerHTML = ownerEntries.map(([owner, items]) => {
+        const ownerOverdue = items.filter(s => new Date(s.nextDue) < now).length;
+        return `
+        <div class="week-group">
+          <div class="week-header" style="cursor:default">
+            <div class="week-header-left">
+              <span class="week-badge" style="background:${ownerOverdue>0?'var(--red)':'var(--gold)'};color:${ownerOverdue>0?'#fff':'var(--navy)'}">${owner.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
+              <span class="week-label">${owner}</span>
+              ${ownerOverdue>0?`<span style="font-size:11px;color:#FCA5A5">${ownerOverdue} overdue</span>`:''}
+            </div>
+            <span class="week-count">${items.length} report${items.length!==1?'s':''}</span>
+          </div>
+          <div class="week-content">
+            ${items.map(renderScheduleCard).join('')}
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      // Flat list
+      document.getElementById('schedules-list').innerHTML = filtered.map(renderScheduleCard).join('');
+    }
+
   } catch(e) {
     document.getElementById('schedules-list').innerHTML='';
     document.getElementById('schedules-empty').style.display='block';
@@ -2563,6 +2649,14 @@ async function loadSchedules() {
     if(e.message && !e.message.includes('401')) toast('Schedules: ' + e.message);
   }
 }
+
+function setScheduleView(mode) {
+  window._scheduleViewMode = mode;
+  document.getElementById('sch-view-flat').classList.toggle('primary', mode==='flat');
+  document.getElementById('sch-view-grouped').classList.toggle('primary', mode==='grouped');
+  loadSchedules();
+}
+
 
 async function loadMyReports() {
   document.getElementById('myreports-empty').style.display='none';
