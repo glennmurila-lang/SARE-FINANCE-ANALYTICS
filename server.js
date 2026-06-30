@@ -765,21 +765,29 @@ function calcNextDue(frequency, from) {
 async function checkDueReminders() {
   try {
     const now = new Date();
+    const todayKey = now.toISOString().slice(0,10); // YYYY-MM-DD
     const in3days = new Date(now.getTime() + 3*24*60*60*1000);
     const dueSoon = await schedulesDb.find({ active: true, nextDue: { $lte: in3days } });
     for (const s of dueSoon) {
       const daysUntil = Math.ceil((new Date(s.nextDue) - now) / (1000*60*60*24));
       if ([3,1,0].includes(daysUntil)) {
+        // Prevent duplicate sends - only send once per day per schedule
+        const lastReminderKey = s.lastReminderKey || '';
+        const todayReminderKey = todayKey + '-' + daysUntil;
+        if (lastReminderKey === todayReminderKey) continue; // already sent today for this exact day-count
+
         await sendEmail(s.ownerEmail,
           `${daysUntil === 0 ? 'DUE TODAY' : `Due in ${daysUntil} day${daysUntil>1?'s':''}`}: ${s.title}`,
           scheduleNotificationEmail(s.ownerName, s.title, s.description, new Date(s.nextDue), s.reportType, s._id)
         );
+        await schedulesDb.update({ _id: s._id }, { $set: { lastReminderKey: todayReminderKey, lastReminderSent: now } });
       }
     }
   } catch(e) { console.error('Reminder check error:', e.message); }
 }
-setTimeout(checkDueReminders, 5000);
-setInterval(checkDueReminders, 60*60*1000);
+// Run once 30 seconds after server start (not immediately, to avoid restart-loop spam), then every 6 hours
+setTimeout(checkDueReminders, 30000);
+setInterval(checkDueReminders, 6*60*60*1000);
 
 app.get('/api/health', (req,res) => res.json({ status:'ok', version:'9.0.0', emailEnabled:!!resend, aiEnabled:!!process.env.ANTHROPIC_API_KEY, features:['history','scheduling','query','jsonrepair'] }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
