@@ -495,12 +495,14 @@ app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
 // ── Report History ────────────────────────────────────────────────────────────
 app.post('/api/history', auth, async (req,res) => {
   try {
-    const { role, perspective, filename, summary, kpis, swot, insights, recommendations, trends, gapChecker, rawData } = req.body;
+    const { role, perspective, filename, summary, kpis, swot, insights, recommendations, trends, gapChecker, rawData, visibility, sharedWith } = req.body;
     const record = await historyDb.insert({
       userId: req.user.id, userName: req.user.name,
       department: req.user.department, org: req.user.org,
       role, perspective, filename, summary, kpis, swot, insights,
       recommendations, trends, gapChecker, rawData,
+      visibility: visibility || 'private',  // private | department | organisation | shared
+      sharedWith: sharedWith || [],          // array of user IDs if visibility is 'shared'
       createdAt: new Date()
     });
     res.json({ id: record._id, success: true });
@@ -509,10 +511,22 @@ app.post('/api/history', auth, async (req,res) => {
 
 app.get('/api/history', auth, async (req,res) => {
   try {
-    const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
-    const query = isExec ? {} : { department: req.user.department };
-    const records = await historyDb.find(query).sort({ createdAt: -1 });
-    res.json(records.map(r => ({ ...r, id: r._id })));
+    const isAdmin = req.user.role === 'admin';
+    const allRecords = await historyDb.find({}).sort({ createdAt: -1 });
+
+    // Apply visibility filtering
+    const visible = allRecords.filter(r => {
+      if (isAdmin) return true; // admin sees everything
+      if (r.userId === req.user.id) return true; // always see your own
+      const vis = r.visibility || 'department'; // legacy records default to department
+      if (vis === 'private') return false; // private = owner only
+      if (vis === 'organisation') return true; // everyone with access sees org-wide
+      if (vis === 'department') return r.department === req.user.department;
+      if (vis === 'shared') return (r.sharedWith||[]).includes(req.user.id);
+      return false;
+    });
+
+    res.json(visible.map(r => ({ ...r, id: r._id })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -520,12 +534,26 @@ app.get('/api/history/:id', auth, async (req,res) => {
   try {
     const record = await historyDb.findOne({ _id: req.params.id });
     if (!record) return res.status(404).json({ error: 'Not found' });
+    // Check access permission
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = record.userId === req.user.id;
+    const vis = record.visibility || 'department';
+    const canSee = isAdmin || isOwner ||
+      (vis === 'organisation') ||
+      (vis === 'department' && record.department === req.user.department) ||
+      (vis === 'shared' && (record.sharedWith||[]).includes(req.user.id));
+    if (!canSee) return res.status(403).json({ error: 'You do not have permission to view this analysis' });
     res.json({ ...record, id: record._id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/history/:id', auth, async (req,res) => {
   try {
+    const record = await historyDb.findOne({ _id: req.params.id });
+    if (!record) return res.status(404).json({ error: 'Not found' });
+    if (record.userId !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the owner or an admin can delete this analysis' });
+    }
     await historyDb.remove({ _id: req.params.id });
     await notesDb.remove({ historyId: req.params.id }, { multi: true });
     res.json({ success: true });
@@ -541,6 +569,19 @@ app.post('/api/history/:id/notes', auth, async (req,res) => {
   try {
     const note = await notesDb.insert({ historyId: req.params.id, userId: req.user.id, userName: req.user.name, text: req.body.text, createdAt: new Date() });
     res.json(note);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/history/:id/visibility', auth, async (req,res) => {
+  try {
+    const record = await historyDb.findOne({ _id: req.params.id });
+    if (!record) return res.status(404).json({ error: 'Not found' });
+    if (record.userId !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the owner can change visibility' });
+    }
+    const { visibility, sharedWith } = req.body;
+    await historyDb.update({ _id: req.params.id }, { $set: { visibility, sharedWith: sharedWith||[] } });
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -607,10 +648,25 @@ app.delete('/api/schedules/:id', auth, async (req,res) => {
 // ── Submissions ───────────────────────────────────────────────────────────────
 app.get('/api/submissions', auth, async (req,res) => {
   try {
-    const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
-    const query = isExec ? {} : { $or: [{ submittedById: req.user.id }, { department: req.user.department }] };
-    const subs = await submissionsDb.find(query).sort({ createdAt: -1 });
-    res.json(subs.map(s => ({ ...s, id: s._id })));
+    const isAdmin = req.user.role === 'admin';
+    const allSubs = await submissionsDb.find({}).sort({ createdAt: -1 });
+    if (isAdmin) return res.json(allSubs.map(s => ({ ...s, id: s._id, fileBuffer: undefined, reportText: undefined })));
+
+    // Get schedules to check reviewer status
+    const schedules = await schedulesDb.find({});
+    const scheduleMap = {};
+    schedules.forEach(sc => { scheduleMap[sc._id] = sc; });
+
+    const visible = allSubs.filter(s => {
+      if (s.submittedById === req.user.id) return true; // own submissions
+      const schedule = scheduleMap[s.scheduleId];
+      if (!schedule) return false;
+      const isReviewer = (schedule.reviewerIds||[]).includes(req.user.id);
+      const isExec = req.user.accessLevel === 'executive';
+      return isReviewer || isExec;
+    });
+
+    res.json(visible.map(s => ({ ...s, id: s._id, fileBuffer: undefined, reportText: undefined })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -669,6 +725,14 @@ app.get('/api/submissions/:id', auth, async (req,res) => {
   try {
     const sub = await submissionsDb.findOne({ _id: req.params.id });
     if (!sub) return res.status(404).json({ error: 'Not found' });
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = sub.submittedById === req.user.id;
+    if (!isAdmin && !isOwner) {
+      const schedule = await schedulesDb.findOne({ _id: sub.scheduleId });
+      const isReviewer = schedule && (schedule.reviewerIds||[]).includes(req.user.id);
+      const isExec = req.user.accessLevel === 'executive';
+      if (!isReviewer && !isExec) return res.status(403).json({ error: 'You do not have permission to view this submission' });
+    }
     res.json({ ...sub, id: sub._id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -717,6 +781,6 @@ async function checkDueReminders() {
 setTimeout(checkDueReminders, 5000);
 setInterval(checkDueReminders, 60*60*1000);
 
-app.get('/api/health', (req,res) => res.json({ status:'ok', version:'8.0.0', emailEnabled:!!resend, aiEnabled:!!process.env.ANTHROPIC_API_KEY, features:['history','scheduling','query','jsonrepair'] }));
+app.get('/api/health', (req,res) => res.json({ status:'ok', version:'9.0.0', emailEnabled:!!resend, aiEnabled:!!process.env.ANTHROPIC_API_KEY, features:['history','scheduling','query','jsonrepair'] }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, () => console.log(`SARE Analytics v8 running on http://localhost:${PORT}`));
