@@ -410,6 +410,18 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .week-content.collapsed{display:none}
 .week-jump{display:flex;align-items:center;gap:8px;margin-bottom:16px}
 .week-jump select{padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;background:#fff;cursor:pointer}
+
+.privacy-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.04em;display:inline-flex;align-items:center;gap:3px}
+.privacy-private{background:#FEE2E2;color:#991B1B}
+.privacy-department{background:#DBEAFE;color:#1E40AF}
+.privacy-organisation{background:#D1FAE5;color:#065F46}
+.privacy-shared{background:#EDE9FE;color:#5B21B6}
+.privacy-selector{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.privacy-option{padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);cursor:pointer;text-align:left;transition:all 0.15s}
+.privacy-option:hover{border-color:var(--blue)}
+.privacy-option.active{border-color:var(--blue);background:var(--blue-light)}
+.privacy-option-title{font-size:12px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:6px}
+.privacy-option-desc{font-size:10px;color:var(--gray-400);margin-top:2px}
 </style>
 </head>
 <body>
@@ -662,6 +674,28 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
           <div style="margin-top:16px">
             <div class="section-label">Additional context (optional)</div>
             <textarea id="ctx-input" style="width:100%;min-height:68px;font-size:13px;padding:10px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit;color:var(--gray-800);background:#fff;resize:vertical;outline:none" placeholder="e.g. Focus on Q2 sales performance, flag cost overruns, prepare for board review…" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--gray-200)'"></textarea>
+          </div>
+          <div style="margin-top:16px">
+            <div class="section-label">Who can see this analysis?</div>
+            <div class="privacy-selector">
+              <div class="privacy-option active" id="priv-private" onclick="selectPrivacy('private')">
+                <div class="privacy-option-title">🔒 Private</div>
+                <div class="privacy-option-desc">Only you can see this</div>
+              </div>
+              <div class="privacy-option" id="priv-department" onclick="selectPrivacy('department')">
+                <div class="privacy-option-title">👥 My Department</div>
+                <div class="privacy-option-desc">Your department team only</div>
+              </div>
+              <div class="privacy-option" id="priv-organisation" onclick="selectPrivacy('organisation')">
+                <div class="privacy-option-title">🏢 Organisation</div>
+                <div class="privacy-option-desc">All executive-level users</div>
+              </div>
+              <div class="privacy-option" id="priv-shared" onclick="selectPrivacy('shared')">
+                <div class="privacy-option-title">👤 Specific People</div>
+                <div class="privacy-option-desc">Choose exactly who sees it</div>
+              </div>
+            </div>
+            <div id="shared-people-picker" style="display:none;margin-bottom:10px"></div>
           </div>
           <div id="progress-wrap" style="display:none" class="progress-wrap">
             <div class="progress-msg" id="progress-msg">Initialising…</div>
@@ -1842,9 +1876,13 @@ async function saveToHistory(result, filename) {
       recommendations: result.recommendations,
       trends: result.trends,
       gapChecker: result.gapChecker,
+      visibility: selectedVisibility || 'private',
+      sharedWith: selectedSharedWith || [],
     });
     currentHistoryRecord = record.id;
-    toast('📚 Analysis saved to history');
+    const visLabel = {private:'🔒 Private',department:'👥 Department',organisation:'🏢 Organisation',shared:'👤 Shared'}[selectedVisibility]||'🔒 Private';
+    toast('📚 Saved as ' + visLabel);
+    resetPrivacySelector();
     return record.id;
   } catch(e) { console.error('History save failed:', e.message); }
 }
@@ -1914,7 +1952,7 @@ async function loadHistory() {
           <div class="hist-header">
             <div>
               <div class="hist-title">${r.filename||'Analysis'}</div>
-              <div class="hist-meta">${date} · ${r.userName||'Unknown'} · ${r.department||'—'} · <span class="role-pill rp-${(r.perspective||'').toLowerCase()}" style="font-size:10px">${(r.perspective||'').toUpperCase()}</span></div>
+              <div class="hist-meta">${date} · ${r.userName||'Unknown'} · ${r.department||'—'} · <span class="role-pill rp-${(r.perspective||'').toLowerCase()}" style="font-size:10px">${(r.perspective||'').toUpperCase()}</span> · <span class="privacy-badge privacy-${r.visibility||'department'}">${{private:'🔒 Private',department:'👥 Dept',organisation:'🏢 Org',shared:'👤 Shared'}[r.visibility||'department']||'👥 Dept'}</span></div>
             </div>
             <div style="display:flex;gap:6px">
               <button class="tbl-btn" onclick="viewHistoryRecord('${r.id||r._id}')">View</button>
@@ -1925,6 +1963,7 @@ async function loadHistory() {
           <div class="hist-kpis">${kpiPreview(r)}</div>
           <div style="font-size:12px;color:var(--gray-600);line-height:1.5">${r.summary||''}</div>
           <div class="hist-actions">
+            ${r.userId===USER?.id||USER?.role==='admin' ? `<button class="tbl-btn" onclick="openVisibilityModal('${r.id||r._id}','${r.visibility||'department'}')">🔐 Visibility</button>` : ''}
             <button class="tbl-btn" onclick="openNotes('${r.id||r._id}')">📝 Notes</button>
             <button class="tbl-btn" onclick="compareSelect('${r.id||r._id}')">⚖ Compare</button>
             <button class="tbl-btn" onclick="loadIntoQuery('${r.id||r._id}');selectReportStyleAndBuild('financial')">📊 Financial Report</button>
@@ -2694,6 +2733,101 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 });
+
+
+// ── Privacy / Visibility controls ────────────────────────────────────────────
+let selectedVisibility = 'private';
+let selectedSharedWith = [];
+
+async function selectPrivacy(level) {
+  selectedVisibility = level;
+  document.querySelectorAll('.privacy-option').forEach(el => el.classList.remove('active'));
+  document.getElementById('priv-' + level)?.classList.add('active');
+
+  const picker = document.getElementById('shared-people-picker');
+  if (level === 'shared') {
+    picker.style.display = 'block';
+    if (allUsers.length === 0) {
+      try { allUsers = await api('/api/admin/users'); } catch { allUsers = []; }
+    }
+    picker.innerHTML = `
+      <div style="border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:10px;max-height:140px;overflow-y:auto;background:var(--gray-50)">
+        ${allUsers.filter(u=>u.id!==USER?.id && u._id!==USER?.id).map(u => `
+          <label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;cursor:pointer">
+            <input type="checkbox" value="${u._id||u.id}" onchange="toggleSharedUser(this.value,this.checked)" style="cursor:pointer">
+            ${u.name} <span style="color:var(--gray-400)">— ${u.role||''} · ${u.department||''}</span>
+          </label>`).join('')}
+      </div>`;
+  } else {
+    picker.style.display = 'none';
+  }
+}
+
+function toggleSharedUser(id, checked) {
+  if (checked) { if (!selectedSharedWith.includes(id)) selectedSharedWith.push(id); }
+  else { selectedSharedWith = selectedSharedWith.filter(x => x !== id); }
+}
+
+function resetPrivacySelector() {
+  selectedVisibility = 'private';
+  selectedSharedWith = [];
+  document.querySelectorAll('.privacy-option').forEach(el => el.classList.remove('active'));
+  document.getElementById('priv-private')?.classList.add('active');
+  const picker = document.getElementById('shared-people-picker');
+  if (picker) picker.style.display = 'none';
+}
+
+async function openVisibilityModal(recordId, currentVis) {
+  document.getElementById('modal-title').textContent = 'Change visibility';
+  document.getElementById('modal-sub').textContent = 'Control who can see this analysis.';
+  document.getElementById('modal-error').style.display = 'none';
+  if (allUsers.length === 0) { try { allUsers = await api('/api/admin/users'); } catch { allUsers = []; } }
+  document.getElementById('modal-body').innerHTML = `
+    <div class="privacy-selector" id="modal-privacy-selector">
+      <div class="privacy-option ${currentVis==='private'?'active':''}" onclick="setModalPrivacy(this,'private')">
+        <div class="privacy-option-title">🔒 Private</div><div class="privacy-option-desc">Only you</div>
+      </div>
+      <div class="privacy-option ${currentVis==='department'?'active':''}" onclick="setModalPrivacy(this,'department')">
+        <div class="privacy-option-title">👥 Department</div><div class="privacy-option-desc">Your team only</div>
+      </div>
+      <div class="privacy-option ${currentVis==='organisation'?'active':''}" onclick="setModalPrivacy(this,'organisation')">
+        <div class="privacy-option-title">🏢 Organisation</div><div class="privacy-option-desc">All executives</div>
+      </div>
+      <div class="privacy-option ${currentVis==='shared'?'active':''}" onclick="setModalPrivacy(this,'shared')">
+        <div class="privacy-option-title">👤 Specific people</div><div class="privacy-option-desc">Choose who sees it</div>
+      </div>
+    </div>
+    <div id="modal-shared-picker" style="display:${currentVis==='shared'?'block':'none'}">
+      <div style="border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:10px;max-height:140px;overflow-y:auto;background:var(--gray-50)">
+        ${allUsers.filter(u=>u.id!==USER?.id && u._id!==USER?.id).map(u => `
+          <label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;cursor:pointer">
+            <input type="checkbox" value="${u._id||u.id}" class="modal-share-cb" style="cursor:pointer">
+            ${u.name}
+          </label>`).join('')}
+      </div>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML = `<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="saveVisibility('${recordId}')">Save</button>`;
+  document.getElementById('modal-overlay').style.display = 'flex';
+  window._modalVis = currentVis;
+}
+
+function setModalPrivacy(el, level) {
+  document.querySelectorAll('#modal-privacy-selector .privacy-option').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  window._modalVis = level;
+  document.getElementById('modal-shared-picker').style.display = level === 'shared' ? 'block' : 'none';
+}
+
+async function saveVisibility(recordId) {
+  const vis = window._modalVis || 'private';
+  const sharedWith = vis === 'shared' ? Array.from(document.querySelectorAll('.modal-share-cb:checked')).map(cb=>cb.value) : [];
+  try {
+    await api('/api/history/' + recordId + '/visibility', 'PUT', { visibility: vis, sharedWith });
+    closeModal();
+    loadHistory();
+    toast('Visibility updated');
+  } catch(e) { document.getElementById('modal-error').textContent = e.message; document.getElementById('modal-error').style.display = 'block'; }
+}
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 async function loadDashboard() {
