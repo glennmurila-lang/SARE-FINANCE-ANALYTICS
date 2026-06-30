@@ -1,5 +1,6 @@
 const express = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
+const { jsonrepair } = require('jsonrepair');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -23,9 +24,30 @@ const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 // ── Databases ─────────────────────────────────────────────────────────────────
 if (!fs.existsSync(path.join(__dirname, 'data'))) fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-const db      = Datastore.create({ filename: path.join(__dirname, 'data', 'users.db'),  autoload: true });
-const deptDb  = Datastore.create({ filename: path.join(__dirname, 'data', 'depts.db'),  autoload: true });
-const rolesDb = Datastore.create({ filename: path.join(__dirname, 'data', 'roles.db'),  autoload: true });
+const db          = Datastore.create({ filename: path.join(__dirname, 'data', 'users.db'),        autoload: true });
+const deptDb      = Datastore.create({ filename: path.join(__dirname, 'data', 'depts.db'),        autoload: true });
+const rolesDb     = Datastore.create({ filename: path.join(__dirname, 'data', 'roles.db'),        autoload: true });
+const historyDb   = Datastore.create({ filename: path.join(__dirname, 'data', 'history.db'),      autoload: true });
+const notesDb     = Datastore.create({ filename: path.join(__dirname, 'data', 'notes.db'),        autoload: true });
+const schedulesDb = Datastore.create({ filename: path.join(__dirname, 'data', 'schedules.db'),    autoload: true });
+const submissionsDb = Datastore.create({ filename: path.join(__dirname, 'data', 'submissions.db'),autoload: true });
+
+// ── Helper: robust JSON parse with auto-repair ────────────────────────────────
+function parseAIJson(text) {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < 0 || end <= start) {
+    throw new Error('No JSON object found in AI response');
+  }
+  const jsonStr = text.slice(start, end + 1);
+  try {
+    return JSON.parse(jsonStr);
+  } catch (parseErr) {
+    // Use jsonrepair to fix common issues: unescaped quotes, trailing commas, etc.
+    const repaired = jsonrepair(jsonStr);
+    return JSON.parse(repaired);
+  }
+}
 
 // ── Email templates ───────────────────────────────────────────────────────────
 function emailBase(bodyHtml) {
@@ -61,7 +83,7 @@ function emailBase(bodyHtml) {
 function welcomeEmail(name, email, password, role, department) {
   return emailBase(`
     <div class="greeting">Welcome to SARE Analytics, ${name}! 👋</div>
-    <p class="text">You have been added to the SARE Analytics Intelligence Platform. Use the credentials below to sign in and start generating executive-grade insights from your financial reports.</p>
+    <p class="text">You have been added to the SARE Analytics Intelligence Platform. Use the credentials below to sign in and start generating executive-grade insights from your business reports.</p>
     <div class="cred-box">
       <div class="cred-row"><span class="cred-label">Login URL</span><span class="cred-value">${APP_URL}</span></div>
       <div class="cred-row"><span class="cred-label">Email</span><span class="cred-value">${email}</span></div>
@@ -70,37 +92,61 @@ function welcomeEmail(name, email, password, role, department) {
       <div class="cred-row"><span class="cred-label">Department</span><span class="cred-value">${department}</span></div>
     </div>
     <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>
-    <div class="notice">🔒 For security, please change your password immediately after your first login. Click the "🔑 Password" button in the sidebar once you are signed in.</div>`);
+    <div class="notice">🔒 For security, please change your password immediately after your first login.</div>`);
 }
 
 function passwordResetEmail(name, email, newPassword) {
   return emailBase(`
     <div class="greeting">Password reset — ${name}</div>
-    <p class="text">Your SARE Analytics password has been reset by your administrator. Use the new password below to sign in.</p>
+    <p class="text">Your SARE Analytics password has been reset by your administrator.</p>
     <div class="cred-box">
       <div class="cred-row"><span class="cred-label">Login URL</span><span class="cred-value">${APP_URL}</span></div>
       <div class="cred-row"><span class="cred-label">Email</span><span class="cred-value">${email}</span></div>
       <div class="cred-row"><span class="cred-label">New password</span><span class="cred-value">${newPassword}</span></div>
     </div>
-    <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>
-    <div class="notice">🔒 Please change your password immediately after signing in.</div>`);
+    <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>`);
 }
 
 function accountStatusEmail(name, active) {
   return emailBase(`
     <div class="greeting">Account ${active ? 'activated' : 'disabled'} — ${name}</div>
     <p class="text">Your SARE Analytics account has been <strong>${active ? 'activated' : 'disabled'}</strong> by your administrator.</p>
-    ${active
-      ? `<a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>`
-      : `<p class="text">If you believe this is an error, please contact your SARE administrator.</p>`
-    }`);
+    ${active ? `<a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>` : ''}`);
+}
+
+function scheduleNotificationEmail(ownerName, title, description, dueDate, reportType, scheduleId) {
+  const due = dueDate.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
+  return emailBase(`
+    <div class="greeting">Report submission required 📋</div>
+    <p class="text">Hi ${ownerName}, you have been assigned as the report owner for the following report. Please submit it by the due date.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${title}</span></div>
+      <div class="cred-row"><span class="cred-label">Type</span><span class="cred-value">${typeLabels[reportType]||reportType}</span></div>
+      <div class="cred-row"><span class="cred-label">Due date</span><span class="cred-value">${due}</span></div>
+      ${description ? `<div class="cred-row"><span class="cred-label">Description</span><span class="cred-value">${description}</span></div>` : ''}
+    </div>
+    <a href="${APP_URL}" class="btn">Log in to submit your report →</a>
+    <div class="notice">📎 Log in to SARE Analytics, go to "My Reports", and upload your Excel or CSV file.</div>`);
+}
+
+function submissionNotificationEmail(reviewerName, reportTitle, submitterName, submissionId, reportType) {
+  const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
+  return emailBase(`
+    <div class="greeting">Report submitted — insights ready 📊</div>
+    <p class="text">Hi ${reviewerName}, <strong>${submitterName}</strong> has submitted the <strong>${reportTitle}</strong>. SARE Analytics has automatically generated insights.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${reportTitle}</span></div>
+      <div class="cred-row"><span class="cred-label">Submitted by</span><span class="cred-value">${submitterName}</span></div>
+    </div>
+    <a href="${APP_URL}" class="btn">View insights in SARE Analytics →</a>`);
 }
 
 async function sendEmail(to, subject, html) {
-  if (!resend) { console.log(`[EMAIL SKIPPED - no API key] To: ${to} | Subject: ${subject}`); return { skipped: true }; }
+  if (!resend) { console.log(`[EMAIL SKIPPED] To: ${to} | Subject: ${subject}`); return { skipped: true }; }
   try {
     const result = await resend.emails.send({ from: `SARE Analytics <${FROM_EMAIL}>`, to, subject, html });
-    console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject}`);
+    console.log(`[EMAIL SENT] To: ${to}`);
     return result;
   } catch(e) { console.error(`[EMAIL FAILED] ${e.message}`); return { error: e.message }; }
 }
@@ -283,13 +329,8 @@ app.post('/api/admin/users', auth, adminOnly, async (req,res) => {
       accessLevel:accessLevel||(roleDoc?.accessLevel)||'analyst',
       org:org||'SARE Analytics', active:true, createdAt:new Date()
     });
-    // Send welcome email
     if (sendWelcomeEmail !== false) {
-      await sendEmail(
-        email,
-        'Welcome to SARE Analytics — your login details',
-        welcomeEmail(name, email, password, role||'Analyst', department||'Operations')
-      );
+      await sendEmail(email, 'Welcome to SARE Analytics — your login details', welcomeEmail(name, email, password, role||'Analyst', department||'Operations'));
     }
     res.json({ ...user, id:user._id, password:undefined, emailSent:!!resend });
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -302,20 +343,10 @@ app.put('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
     const update = { name, email:email?.toLowerCase(), role, department, accessLevel, org, active };
     if (password && password.length >= 8) {
       update.password = bcrypt.hashSync(password,10);
-      // Send password reset email
-      await sendEmail(
-        user.email,
-        'Your SARE Analytics password has been reset',
-        passwordResetEmail(user.name, user.email, password)
-      );
+      await sendEmail(user.email, 'Your SARE Analytics password has been reset', passwordResetEmail(user.name, user.email, password));
     }
-    // Send status change email if active status changed
     if (user && user.active !== active) {
-      await sendEmail(
-        user.email,
-        `Your SARE Analytics account has been ${active?'activated':'disabled'}`,
-        accountStatusEmail(user.name, active)
-      );
+      await sendEmail(user.email, `Your SARE Analytics account has been ${active?'activated':'disabled'}`, accountStatusEmail(user.name, active));
     }
     await db.update({ _id:req.params.id }, { $set:update });
     res.json({ success:true });
@@ -357,17 +388,7 @@ app.post('/api/parse', auth, upload.array('files',10), (req,res) => {
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
-// ── Email test route (admin only) ─────────────────────────────────────────────
-app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
-  try {
-    const result = await sendEmail(req.user.email, 'SARE Analytics — email test', emailBase(`
-      <div class="greeting">Email is working! ✅</div>
-      <p class="text">Your SARE Analytics email system is configured correctly. Emails will now be sent automatically when you add users, reset passwords, or change account status.</p>`));
-    res.json({ success:true, result });
-  } catch(e) { res.status(500).json({ error:e.message }); }
-});
-
-// ── Anthropic AI proxy (secure server-side) ──────────────────────────────────
+// ── AI proxy with robust JSON parsing ──────────────────────────────────────────
 app.post('/api/analyse', auth, async (req,res) => {
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -377,19 +398,325 @@ app.post('/api/analyse', auth, async (req,res) => {
     if (!prompt) return res.status(400).json({ error: 'Prompt required' });
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: maxTokens || 2000,
+      max_tokens: maxTokens || 1500,
       messages: [{ role: 'user', content: prompt }]
     });
-    let text = (message.content||[]).map(b=>b.text||'').join('');
-    
-    // Sanitize text to fix common JSON breaking characters
-    const sanitizeForJson = (str) => {
-      if (!str) return str;
-      // Remove/replace characters that break JSON parsing
-      return str
-        .replace(/\/g, '\\')           // escape backslashes first
-        .replace(/[‘’']/g, "\'")  // smart single quotes -> escaped
-        .replace(/[“”]/g, '\"')         // smart double quotes -> escaped  
-        .replace(/[–—]/g, '-')           // em/en dashes -> hyphen
-        .replace(/[…]/g, '...')               // ellipsis
-        .replace(/[
+    const text = (message.content||[]).map(b=>b.text||'').join('');
+
+    if (expectJson) {
+      try {
+        const parsed = parseAIJson(text);
+        return res.json({ text, parsed, success: true });
+      } catch(parseErr) {
+        console.error('JSON parse/repair failed:', parseErr.message);
+        return res.json({ text, parseError: parseErr.message });
+      }
+    }
+    res.json({ text, usage: message.usage });
+  } catch(e) {
+    console.error('Analyse error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Dedicated submission analysis (Haiku model, robust parsing) ───────────────
+app.post('/api/analyse-submission', auth, async (req, res) => {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to Render environment variables.' });
+    }
+    const { title, submitter, department, role, data } = req.body;
+
+    const prompt = `Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
+
+Report: ${title}
+Submitted by: ${submitter}
+Department: ${department}
+Data summary: ${data}
+
+Return this exact JSON structure with real values based on the data:
+{"role":"${role}","summary":"Two sentence summary of key findings from this report","kpis":[{"label":"Total Amount","value":"KES X","delta":"+X%","positive":true},{"label":"Outstanding Items","value":"X","delta":"+X","positive":false},{"label":"Overdue Amount","value":"KES X","delta":"+X%","positive":false}],"swot":{"strengths":["Strength based on data 1","Strength 2"],"weaknesses":["Weakness from data 1","Weakness 2"],"opportunities":["Opportunity 1","Opportunity 2"],"threats":["Threat 1","Threat 2"]},"insights":[{"title":"Key Finding","body":"Specific insight from the data with numbers","type":"warning","badge":"Watch"},{"title":"Action Required","body":"What needs to be done based on findings","type":"danger","badge":"Critical"}],"recommendations":["Specific action 1 based on data","Action 2","Action 3"]}`;
+
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const text = (message.content || []).map(b => b.text || '').join('');
+    let result;
+    try {
+      result = parseAIJson(text);
+    } catch(parseErr) {
+      console.error('analyse-submission parse failed:', parseErr.message);
+      return res.status(500).json({ error: 'AI response could not be parsed: ' + parseErr.message });
+    }
+
+    if (!result.trends) {
+      result.trends = {
+        revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
+        wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
+        transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
+        compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
+      };
+    }
+    if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
+    if (!result.standardChecklist) result.standardChecklist = [];
+
+    res.json({ result, success: true });
+  } catch(e) {
+    console.error('analyse-submission error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Download submitted report file ────────────────────────────────────────────
+app.get('/api/submissions/:id/download', auth, async (req,res) => {
+  try {
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    if (!sub.fileBuffer) return res.status(404).json({ error: 'File not stored — please resubmit' });
+    res.setHeader('Content-Disposition', `attachment; filename="${sub.filename||'report.xlsx'}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.send(Buffer.from(sub.fileBuffer, 'base64'));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Email test ──────────────────────────────────────────────────────────────
+app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
+  try {
+    const result = await sendEmail(req.user.email, 'SARE Analytics — email test', emailBase(`
+      <div class="greeting">Email is working! ✅</div>
+      <p class="text">Your SARE Analytics email system is configured correctly.</p>`));
+    res.json({ success:true, result });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── Report History ────────────────────────────────────────────────────────────
+app.post('/api/history', auth, async (req,res) => {
+  try {
+    const { role, perspective, filename, summary, kpis, swot, insights, recommendations, trends, gapChecker, rawData } = req.body;
+    const record = await historyDb.insert({
+      userId: req.user.id, userName: req.user.name,
+      department: req.user.department, org: req.user.org,
+      role, perspective, filename, summary, kpis, swot, insights,
+      recommendations, trends, gapChecker, rawData,
+      createdAt: new Date()
+    });
+    res.json({ id: record._id, success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/history', auth, async (req,res) => {
+  try {
+    const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
+    const query = isExec ? {} : { department: req.user.department };
+    const records = await historyDb.find(query).sort({ createdAt: -1 });
+    res.json(records.map(r => ({ ...r, id: r._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/history/:id', auth, async (req,res) => {
+  try {
+    const record = await historyDb.findOne({ _id: req.params.id });
+    if (!record) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...record, id: record._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/history/:id', auth, async (req,res) => {
+  try {
+    await historyDb.remove({ _id: req.params.id });
+    await notesDb.remove({ historyId: req.params.id }, { multi: true });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/history/:id/notes', auth, async (req,res) => {
+  try { res.json(await notesDb.find({ historyId: req.params.id }).sort({ createdAt: 1 })); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/history/:id/notes', auth, async (req,res) => {
+  try {
+    const note = await notesDb.insert({ historyId: req.params.id, userId: req.user.id, userName: req.user.name, text: req.body.text, createdAt: new Date() });
+    res.json(note);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/history/compare/:id1/:id2', auth, async (req,res) => {
+  try {
+    const [a, b] = await Promise.all([historyDb.findOne({ _id: req.params.id1 }), historyDb.findOne({ _id: req.params.id2 })]);
+    if (!a || !b) return res.status(404).json({ error: 'One or both records not found' });
+    res.json({ a: { ...a, id: a._id }, b: { ...b, id: b._id } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Schedule CRUD ─────────────────────────────────────────────────────────────
+app.get('/api/schedules', auth, async (req,res) => {
+  try {
+    const isExec = ['executive'].includes(req.user.accessLevel) || req.user.role === 'admin';
+    let query = {};
+    if (!isExec) {
+      query = { $or: [{ ownerId: req.user.id }, { reviewerIds: req.user.id }, { department: req.user.department }] };
+    }
+    const schedules = await schedulesDb.find(query).sort({ nextDue: 1 });
+    res.json(schedules.map(s => ({ ...s, id: s._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/schedules', auth, async (req,res) => {
+  try {
+    const allowed = ['executive','senior','manager'].includes(req.user.accessLevel) || req.user.role === 'admin';
+    if (!allowed) return res.status(403).json({ error: 'Senior role or above required to create schedules' });
+    const { title, description, reportType, frequency, firstDueDate, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective } = req.body;
+    if (!title || !firstDueDate || !ownerId) return res.status(400).json({ error: 'Title, due date and owner required' });
+    const schedule = await schedulesDb.insert({
+      title, description: description||'', reportType: reportType||'financial',
+      frequency, firstDueDate: new Date(firstDueDate),
+      nextDue: new Date(firstDueDate),
+      ownerId, ownerName, ownerEmail,
+      reviewerIds: reviewerIds||[], department: department||req.user.department,
+      perspective: perspective||'cfo',
+      createdBy: req.user.id, createdByName: req.user.name,
+      active: true, createdAt: new Date()
+    });
+    await sendEmail(ownerEmail,
+      `Action required: ${title} is due ${new Date(firstDueDate).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
+      scheduleNotificationEmail(ownerName, title, description||'', new Date(firstDueDate), reportType||'financial', schedule._id)
+    );
+    res.json({ ...schedule, id: schedule._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/schedules/:id', auth, async (req,res) => {
+  try {
+    const { title, description, reportType, frequency, nextDue, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } = req.body;
+    await schedulesDb.update({ _id: req.params.id }, { $set: { title, description, reportType, frequency, nextDue: nextDue ? new Date(nextDue) : undefined, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/schedules/:id', auth, async (req,res) => {
+  try {
+    await schedulesDb.remove({ _id: req.params.id });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Submissions ───────────────────────────────────────────────────────────────
+app.get('/api/submissions', auth, async (req,res) => {
+  try {
+    const isExec = req.user.accessLevel === 'executive' || req.user.role === 'admin';
+    const query = isExec ? {} : { $or: [{ submittedById: req.user.id }, { department: req.user.department }] };
+    const subs = await submissionsDb.find(query).sort({ createdAt: -1 });
+    res.json(subs.map(s => ({ ...s, id: s._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/submissions/pending', auth, async (req,res) => {
+  try {
+    const mySchedules = await schedulesDb.find({ ownerId: req.user.id, active: true });
+    const now = new Date();
+    const pending = mySchedules.filter(s => new Date(s.nextDue) <= new Date(now.getTime() + 3*24*60*60*1000));
+    res.json(pending.map(s => ({ ...s, id: s._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
+  try {
+    const { scheduleId, notes } = req.body;
+    const schedule = await schedulesDb.findOne({ _id: scheduleId });
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+    let reportText = '';
+    if (req.file) {
+      if (req.file.originalname.endsWith('.csv')) {
+        reportText = req.file.buffer.toString('utf8').slice(0, 4000);
+      } else {
+        const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+        wb.SheetNames.forEach(sn => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 });
+          reportText += `SHEET: ${sn}\n`;
+          rows.slice(0, 100).forEach(r => { reportText += r.join('\t') + '\n'; });
+        });
+        reportText = reportText.slice(0, 4000);
+      }
+    }
+    const submission = await submissionsDb.insert({
+      scheduleId, scheduleTitle: schedule.title,
+      submittedById: req.user.id, submittedByName: req.user.name,
+      department: req.user.department,
+      filename: req.file?.originalname || 'Manual submission',
+      fileBuffer: req.file ? req.file.buffer.toString('base64') : null,
+      fileMime: req.file?.mimetype || null,
+      notes: notes||'', reportText,
+      status: 'submitted', createdAt: new Date()
+    });
+    const nextDue = calcNextDue(schedule.frequency, new Date(schedule.nextDue));
+    await schedulesDb.update({ _id: scheduleId }, { $set: { nextDue, lastSubmitted: new Date() } });
+    const reviewerUsers = await db.find({ _id: { $in: schedule.reviewerIds||[] } });
+    for (const reviewer of reviewerUsers) {
+      await sendEmail(reviewer.email,
+        `Report submitted: ${schedule.title} — insights ready`,
+        submissionNotificationEmail(reviewer.name, schedule.title, req.user.name, submission._id, schedule.reportType)
+      );
+    }
+    res.json({ ...submission, id: submission._id, reportText: undefined });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/submissions/:id', auth, async (req,res) => {
+  try {
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...sub, id: sub._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/schedules/:id/remind', auth, async (req,res) => {
+  try {
+    const schedule = await schedulesDb.findOne({ _id: req.params.id });
+    if (!schedule) return res.status(404).json({ error: 'Not found' });
+    await sendEmail(schedule.ownerEmail,
+      `Reminder: ${schedule.title} is due ${new Date(schedule.nextDue).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
+      scheduleNotificationEmail(schedule.ownerName, schedule.title, schedule.description, new Date(schedule.nextDue), schedule.reportType, schedule._id)
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+function calcNextDue(frequency, from) {
+  const d = new Date(from);
+  switch(frequency) {
+    case 'daily':     d.setDate(d.getDate() + 1); break;
+    case 'weekly':    d.setDate(d.getDate() + 7); break;
+    case 'monthly':   d.setMonth(d.getMonth() + 1); break;
+    case 'quarterly': d.setMonth(d.getMonth() + 3); break;
+    case 'annually':  d.setFullYear(d.getFullYear() + 1); break;
+    default:          d.setMonth(d.getMonth() + 1);
+  }
+  return d;
+}
+
+async function checkDueReminders() {
+  try {
+    const now = new Date();
+    const in3days = new Date(now.getTime() + 3*24*60*60*1000);
+    const dueSoon = await schedulesDb.find({ active: true, nextDue: { $lte: in3days } });
+    for (const s of dueSoon) {
+      const daysUntil = Math.ceil((new Date(s.nextDue) - now) / (1000*60*60*24));
+      if ([3,1,0].includes(daysUntil)) {
+        await sendEmail(s.ownerEmail,
+          `${daysUntil === 0 ? 'DUE TODAY' : `Due in ${daysUntil} day${daysUntil>1?'s':''}`}: ${s.title}`,
+          scheduleNotificationEmail(s.ownerName, s.title, s.description, new Date(s.nextDue), s.reportType, s._id)
+        );
+      }
+    }
+  } catch(e) { console.error('Reminder check error:', e.message); }
+}
+setTimeout(checkDueReminders, 5000);
+setInterval(checkDueReminders, 60*60*1000);
+
+app.get('/api/health', (req,res) => res.json({ status:'ok', version:'8.0.0', emailEnabled:!!resend, aiEnabled:!!process.env.ANTHROPIC_API_KEY, features:['history','scheduling','query','jsonrepair'] }));
+app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
+app.listen(PORT, () => console.log(`SARE Analytics v8 running on http://localhost:${PORT}`));
