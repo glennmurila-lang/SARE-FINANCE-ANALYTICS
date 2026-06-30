@@ -1,7 +1,7 @@
 {
   "name": "sare-analytics-intelligence",
-  "version": "8.0.0",
-  "description": "SARE Analytics v6 \u2014 Scheduling, Workflows, History, Query Engine",
+  "version": "9.0.0",
+  "description": "SARE Analytics v9 \u2014 Privacy controls, week grouping, jsonrepair",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
