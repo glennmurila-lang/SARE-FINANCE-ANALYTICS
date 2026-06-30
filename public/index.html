@@ -423,6 +423,57 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .privacy-option.active{border-color:var(--blue);background:var(--blue-light)}
 .privacy-option-title{font-size:12px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:6px}
 .privacy-option-desc{font-size:10px;color:var(--gray-400);margin-top:2px}
+
+/* ── Chat interface ── */
+.chat-layout{display:grid;grid-template-columns:280px 1fr;gap:14px;height:calc(100vh - 140px);min-height:500px}
+.chat-sidebar{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);overflow-y:auto;display:flex;flex-direction:column}
+.chat-sidebar-header{padding:14px 16px;border-bottom:1px solid var(--gray-100)}
+.chat-new-btn{width:100%;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.chat-new-btn:hover{background:#1558c0}
+.chat-thread-list{flex:1;overflow-y:auto;padding:8px}
+.chat-thread-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;transition:all 0.15s}
+.chat-thread-item:hover{background:var(--gray-50)}
+.chat-thread-item.active{background:var(--blue-light)}
+.chat-thread-title{font-size:12px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-thread-meta{font-size:10px;color:var(--gray-400);margin-top:2px}
+.chat-main{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:14px 18px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.chat-header-info{display:flex;align-items:center;gap:10px}
+.chat-report-badge{display:flex;align-items:center;gap:6px;background:var(--blue-light);padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;color:var(--blue)}
+.chat-no-report{font-size:12px;color:var(--gray-400)}
+.chat-messages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+.chat-msg{max-width:78%;display:flex;gap:10px}
+.chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
+.chat-msg.assistant{align-self:flex-start}
+.chat-msg-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.chat-msg.user .chat-msg-avatar{background:var(--blue);color:#fff}
+.chat-msg.assistant .chat-msg-avatar{background:var(--navy);color:#fff}
+.chat-msg-bubble{padding:11px 15px;border-radius:14px;font-size:13px;line-height:1.6}
+.chat-msg.user .chat-msg-bubble{background:var(--blue);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.assistant .chat-msg-bubble{background:var(--gray-50);color:var(--gray-800);border-bottom-left-radius:4px}
+.chat-msg-bubble table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+.chat-msg-bubble th{background:var(--navy);color:#fff;padding:6px 10px;text-align:left}
+.chat-msg-bubble td{padding:6px 10px;border-bottom:1px solid var(--gray-200)}
+.chat-msg-time{font-size:9px;color:var(--gray-400);margin-top:4px}
+.chat-input-area{padding:14px 18px;border-top:1px solid var(--gray-100)}
+.chat-input-row{display:flex;gap:8px;align-items:flex-end}
+.chat-textarea{flex:1;min-height:44px;max-height:120px;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:12px;font-size:13px;font-family:inherit;resize:none;outline:none}
+.chat-textarea:focus{border-color:var(--blue)}
+.chat-send-btn{width:44px;height:44px;border-radius:12px;background:var(--blue);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-send-btn:hover{background:#1558c0}
+.chat-send-btn:disabled{background:var(--gray-300);cursor:not-allowed}
+.chat-empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--gray-400);text-align:center;padding:40px}
+.chat-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:10px 18px;border-top:1px solid var(--gray-100)}
+.chat-suggestion-chip{font-size:11px;padding:6px 12px;border-radius:16px;border:1px solid var(--gray-200);background:#fff;cursor:pointer;color:var(--gray-600);transition:all 0.15s}
+.chat-suggestion-chip:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
+.chat-typing{display:flex;gap:4px;padding:11px 15px}
+.chat-typing span{width:6px;height:6px;background:var(--gray-400);border-radius:50%;animation:chatTyping 1.4s infinite}
+.chat-typing span:nth-child(2){animation-delay:0.2s}
+.chat-typing span:nth-child(3){animation-delay:0.4s}
+@keyframes chatTyping{0%,60%,100%{opacity:0.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.chat-drop-zone{border:2px dashed var(--gray-200);border-radius:12px;padding:24px;text-align:center;cursor:pointer;margin:14px 18px;transition:all 0.2s}
+.chat-drop-zone:hover,.chat-drop-zone.drag{border-color:var(--blue);background:var(--blue-light)}
+@media(max-width:900px){.chat-layout{grid-template-columns:1fr;height:auto}.chat-sidebar{max-height:200px}}
 </style>
 </head>
 <body>
@@ -515,7 +566,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
       <div class="nav-section">
         <div class="nav-section-label">Intelligence</div>
         <button class="nav-item" onclick="gotoView('history')"><span class="nav-icon">📚</span>Report History</button>
-        <button class="nav-item" onclick="gotoView('query')"><span class="nav-icon">💬</span>AI Query Engine</button>
+        <button class="nav-item" onclick="gotoView('chat')"><span class="nav-icon">💬</span>Chat with Reports</button>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Workflows</div>
@@ -741,6 +792,65 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
           <div id="t-wal" style="display:none"><div class="card"><div class="card-title">Active vs dormant wallets</div><div class="chart-wrap"><canvas id="chart-wal" role="img" aria-label="Wallet trend">Wallet data.</canvas></div><div class="chart-legend"><span><span class="legend-dot" style="background:#1B6FE4"></span>Active</span><span><span class="legend-dot" style="background:#E53E3E"></span>Dormant</span></div></div></div>
           <div id="t-txn" style="display:none"><div class="card"><div class="card-title">Transaction status</div><div class="chart-wrap"><canvas id="chart-txn" role="img" aria-label="Transactions">Transaction data.</canvas></div><div class="chart-legend"><span><span class="legend-dot" style="background:#0DAF6A"></span>Success</span><span><span class="legend-dot" style="background:#E53E3E"></span>Failed</span><span><span class="legend-dot" style="background:#D97706"></span>Pending</span></div></div></div>
           <div id="t-com" style="display:none"><div class="card"><div class="card-title">Compliance flags</div><div class="chart-wrap"><canvas id="chart-com" role="img" aria-label="Compliance">Compliance data.</canvas></div><div class="chart-legend"><span><span class="legend-dot" style="background:#D97706"></span>High-value</span><span><span class="legend-dot" style="background:#E53E3E"></span>Dormant flags</span></div></div></div>
+        </div>
+      </div>
+
+      <!-- CHAT VIEW -->
+      <div id="view-chat" style="display:none">
+        <div class="chat-layout">
+
+          <!-- Thread sidebar -->
+          <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+              <button class="chat-new-btn" onclick="startNewChatThread()">＋ New conversation</button>
+            </div>
+            <div class="chat-thread-list" id="chat-thread-list">
+              <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No conversations yet</div>
+            </div>
+          </div>
+
+          <!-- Main chat -->
+          <div class="chat-main">
+            <div class="chat-header">
+              <div class="chat-header-info">
+                <strong style="font-size:13px;color:var(--navy)" id="chat-thread-title">New conversation</strong>
+              </div>
+              <div id="chat-report-indicator">
+                <span class="chat-no-report">No report attached</span>
+              </div>
+            </div>
+
+            <div class="chat-drop-zone" id="chat-drop-zone" onclick="document.getElementById('chat-file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleChatDrop(event)">
+              <div style="font-size:26px;margin-bottom:6px">📎</div>
+              <div style="font-size:13px;font-weight:600;color:var(--navy)">Attach a report to start chatting about it</div>
+              <div style="font-size:11px;color:var(--gray-400);margin-top:3px">Excel, CSV or PDF — stays attached for the whole conversation</div>
+            </div>
+            <input type="file" id="chat-file-input" accept=".xlsx,.xls,.csv,.pdf" style="display:none" onchange="attachChatReport(this.files[0])">
+
+            <div class="chat-messages" id="chat-messages">
+              <div class="chat-empty-state">
+                <div style="font-size:40px;margin-bottom:12px">💬</div>
+                <div style="font-size:14px;font-weight:600;color:var(--gray-600);margin-bottom:6px">Start a conversation</div>
+                <div style="font-size:12px;max-width:320px">Attach a report above, then ask anything. The conversation remembers your data — no need to re-explain context each time.</div>
+              </div>
+            </div>
+
+            <div class="chat-suggestions" id="chat-suggestions" style="display:none">
+              <span class="chat-suggestion-chip" onclick="sendChatSuggestion('Summarise the key numbers in this report')">📊 Summarise key numbers</span>
+              <span class="chat-suggestion-chip" onclick="sendChatSuggestion('What are the 3 biggest risks here?')">⚠️ Biggest risks</span>
+              <span class="chat-suggestion-chip" onclick="sendChatSuggestion('Double check your previous calculation')">🔍 Verify calculation</span>
+              <span class="chat-suggestion-chip" onclick="sendChatSuggestion('Show this as a table')">📋 Show as table</span>
+              <span class="chat-suggestion-chip" onclick="sendChatSuggestion('What would you recommend I do first?')">✅ What to do first</span>
+            </div>
+
+            <div class="chat-input-area">
+              <div class="chat-input-row">
+                <textarea class="chat-textarea" id="chat-input" placeholder="Ask about the attached report..." onkeydown="handleChatKeydown(event)"></textarea>
+                <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">➤</button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -1078,6 +1188,7 @@ const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth 
 const PAGE_META={dashboard:{title:'Dashboard',sub:'Company-wide performance overview · Make Cents Make Sense'},
     upload:{title:'Upload & Analyse',sub:'Upload your business reports for AI analysis'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},builder:{title:'Report Builder',sub:'Generate standardised executive reports for any audience'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all key business categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
     history:{title:'Report History',sub:'Track, compare and evolve your analysis over time'},
+    chat:{title:'Chat with Reports',sub:'Upload once, ask anything — the conversation remembers your data'},
     query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'},
     schedules:{title:'Report Schedules',sub:'Create and manage recurring report requests'},
     myreports:{title:'My Reports',sub:'Reports assigned to you for submission'},
@@ -1167,7 +1278,7 @@ function showApp(){
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function gotoView(v){
-  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','schedules','myreports','workflows'];
+  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','chat','schedules','myreports','workflows'];
   ALL_VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
     if(el) el.style.display=(id===v?'block':'none');
@@ -1175,7 +1286,7 @@ function gotoView(v){
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>{
     const t=el.textContent.toLowerCase();
-    const matches = (v==='dashboard'&&t.includes('dashboard'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'));
+    const matches = (v==='dashboard'&&t.includes('dashboard'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='chat'&&t.includes('chat'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'));
     if(matches) el.classList.add('active');
   });
   const m=PAGE_META[v]||{title:v,sub:''};
@@ -1186,6 +1297,7 @@ function gotoView(v){
   if(v==='admin'&&USER?.role==='admin'){loadUsers();}
   if(v==='dashboard')loadDashboard();
   if(v==='history')loadHistory();
+  if(v==='chat')loadChatView();
   if(v==='schedules')loadSchedules();
   if(v==='myreports')loadMyReports();
   if(v==='workflows')loadWorkflows();
@@ -2864,6 +2976,221 @@ async function saveVisibility(recordId) {
     loadHistory();
     toast('Visibility updated');
   } catch(e) { document.getElementById('modal-error').textContent = e.message; document.getElementById('modal-error').style.display = 'block'; }
+}
+
+
+// ── Chat with Reports - state ─────────────────────────────────────────────────
+let chatThreads = JSON.parse(localStorage.getItem('sare_chat_threads') || '[]');
+let currentChatThreadId = null;
+let currentChatReport = null; // { filename, dataText }
+
+function saveChatThreadsToStorage() {
+  // Keep max 20 threads, trim message history to last 40 per thread to avoid bloat
+  const trimmed = chatThreads.slice(0,20).map(t => ({ ...t, messages: t.messages.slice(-40) }));
+  localStorage.setItem('sare_chat_threads', JSON.stringify(trimmed));
+}
+
+function loadChatView() {
+  renderChatThreadList();
+  if (!currentChatThreadId && chatThreads.length > 0) {
+    openChatThread(chatThreads[0].id);
+  } else if (!currentChatThreadId) {
+    startNewChatThread();
+  } else {
+    openChatThread(currentChatThreadId);
+  }
+}
+
+function startNewChatThread() {
+  const thread = {
+    id: 'thread_' + Date.now(),
+    title: 'New conversation',
+    report: null,
+    messages: [],
+    createdAt: new Date().toISOString()
+  };
+  chatThreads.unshift(thread);
+  currentChatThreadId = thread.id;
+  currentChatReport = null;
+  saveChatThreadsToStorage();
+  renderChatThreadList();
+  renderChatThread(thread);
+}
+
+function renderChatThreadList() {
+  const list = document.getElementById('chat-thread-list');
+  if (chatThreads.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No conversations yet</div>';
+    return;
+  }
+  list.innerHTML = chatThreads.map(t => {
+    const lastMsg = t.messages[t.messages.length-1];
+    const preview = lastMsg ? lastMsg.content.slice(0,40) : 'No messages yet';
+    const date = new Date(t.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+    return `<div class="chat-thread-item ${t.id===currentChatThreadId?'active':''}" onclick="openChatThread('${t.id}')">
+      <div class="chat-thread-title">${t.report ? '📎 ' : ''}${t.title}</div>
+      <div class="chat-thread-meta">${preview}${preview.length>=40?'...':''} · ${date}</div>
+    </div>`;
+  }).join('');
+}
+
+function openChatThread(id) {
+  const thread = chatThreads.find(t => t.id === id);
+  if (!thread) return;
+  currentChatThreadId = id;
+  currentChatReport = thread.report;
+  renderChatThreadList();
+  renderChatThread(thread);
+}
+
+function renderChatThread(thread) {
+  document.getElementById('chat-thread-title').textContent = thread.title;
+
+  // Report indicator
+  const indicator = document.getElementById('chat-report-indicator');
+  if (thread.report) {
+    indicator.innerHTML = `<span class="chat-report-badge">📎 ${thread.report.filename} <span style="cursor:pointer;margin-left:4px" onclick="event.stopPropagation();detachChatReport()">×</span></span>`;
+    document.getElementById('chat-drop-zone').style.display = 'none';
+    document.getElementById('chat-suggestions').style.display = 'flex';
+  } else {
+    indicator.innerHTML = '<span class="chat-no-report">No report attached</span>';
+    document.getElementById('chat-drop-zone').style.display = 'block';
+    document.getElementById('chat-suggestions').style.display = 'none';
+  }
+
+  // Messages
+  const msgContainer = document.getElementById('chat-messages');
+  if (thread.messages.length === 0) {
+    msgContainer.innerHTML = `<div class="chat-empty-state">
+      <div style="font-size:40px;margin-bottom:12px">💬</div>
+      <div style="font-size:14px;font-weight:600;color:var(--gray-600);margin-bottom:6px">Start a conversation</div>
+      <div style="font-size:12px;max-width:320px">${thread.report ? 'Ask anything about ' + thread.report.filename : 'Attach a report above, then ask anything.'}</div>
+    </div>`;
+  } else {
+    msgContainer.innerHTML = thread.messages.map(m => renderChatMessage(m)).join('');
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+  }
+}
+
+function renderChatMessage(m) {
+  const initials = m.role === 'user' ? (USER?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : 'AI';
+  const time = new Date(m.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const bodyHtml = m.role === 'assistant' ? markdownToHtml(m.content) : m.content.replace(/\n/g,'<br>');
+  return `<div class="chat-msg ${m.role}">
+    <div class="chat-msg-avatar">${initials}</div>
+    <div>
+      <div class="chat-msg-bubble">${bodyHtml}</div>
+      <div class="chat-msg-time">${time}</div>
+    </div>
+  </div>`;
+}
+
+// ── Attach report to chat ──────────────────────────────────────────────────────
+function handleChatDrop(e) {
+  e.preventDefault();
+  document.getElementById('chat-drop-zone').classList.remove('drag');
+  if (e.dataTransfer.files[0]) attachChatReport(e.dataTransfer.files[0]);
+}
+
+async function attachChatReport(file) {
+  if (!file) return;
+  toast('Reading ' + file.name + '...');
+  const dataText = await readFile(file);
+  const thread = chatThreads.find(t => t.id === currentChatThreadId);
+  if (!thread) return;
+  thread.report = { filename: file.name, dataText: dataText.slice(0,6000) };
+  thread.title = file.name.replace(/\.[^.]+$/, '');
+  currentChatReport = thread.report;
+  saveChatThreadsToStorage();
+  renderChatThreadList();
+  renderChatThread(thread);
+  toast('📎 ' + file.name + ' attached — ask anything about it');
+}
+
+function detachChatReport() {
+  const thread = chatThreads.find(t => t.id === currentChatThreadId);
+  if (!thread) return;
+  thread.report = null;
+  currentChatReport = null;
+  saveChatThreadsToStorage();
+  renderChatThread(thread);
+  toast('Report detached');
+}
+
+// ── Send messages ───────────────────────────────────────────────────────────────
+function handleChatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChatMessage();
+  }
+}
+
+function sendChatSuggestion(text) {
+  document.getElementById('chat-input').value = text;
+  sendChatMessage();
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const thread = chatThreads.find(t => t.id === currentChatThreadId);
+  if (!thread) return;
+
+  // Add user message
+  thread.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() });
+  if (thread.title === 'New conversation' && !thread.report) {
+    thread.title = text.slice(0, 35) + (text.length > 35 ? '...' : '');
+  }
+  saveChatThreadsToStorage();
+  renderChatThreadList();
+  renderChatThread(thread);
+  input.value = '';
+
+  // Show typing indicator
+  const msgContainer = document.getElementById('chat-messages');
+  msgContainer.innerHTML += `<div class="chat-msg assistant" id="chat-typing-indicator">
+    <div class="chat-msg-avatar">AI</div>
+    <div class="chat-msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>
+  </div>`;
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+
+  const sendBtn = document.getElementById('chat-send-btn');
+  sendBtn.disabled = true;
+
+  try {
+    // Build conversation history for context (last 10 exchanges)
+    const recentHistory = thread.messages.slice(-20).map(m => ({ role: m.role, content: m.content }));
+
+    const reportContext = thread.report
+      ? `\n\nATTACHED REPORT: ${thread.report.filename}\nDATA:\n${thread.report.dataText}\n\nUse this report data to answer accurately. If asked to verify or double-check a number, recalculate it directly from the data shown above rather than guessing.`
+      : '';
+
+    const systemPrompt = `You are SARE Analytics AI — a business intelligence assistant for FMCG and general business. Be conversational but precise. When given a report, cite specific numbers from it. If you are unsure or the data does not contain something asked, say so honestly rather than inventing numbers. Keep responses focused and not overly long unless asked for detail. Use markdown formatting (tables, bold, lists) where helpful.${reportContext}`;
+
+    const messages = [
+      { role: 'user', content: systemPrompt + '\n\nConversation so far, respond to the latest message:\n' + recentHistory.map(m => (m.role==='user'?'User: ':'Assistant: ') + m.content).join('\n') }
+    ];
+
+    const answer = await callAI(messages[0].content, 1200);
+
+    // Remove typing indicator
+    document.getElementById('chat-typing-indicator')?.remove();
+
+    thread.messages.push({ role: 'assistant', content: answer, timestamp: new Date().toISOString() });
+    saveChatThreadsToStorage();
+    renderChatThread(thread);
+
+  } catch(e) {
+    document.getElementById('chat-typing-indicator')?.remove();
+    thread.messages.push({ role: 'assistant', content: '⚠️ Error: ' + e.message, timestamp: new Date().toISOString() });
+    renderChatThread(thread);
+    toast('Chat error: ' + e.message);
+  }
+
+  sendBtn.disabled = false;
+  input.focus();
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
