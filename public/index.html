@@ -560,7 +560,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Reports</div>
-        <button class="nav-item" onclick="gotoView('builder')"><span class="nav-icon">🏗️</span>Report Builder</button>
+        <button class="nav-item" id="nav-builder" onclick="gotoView('builder')"><span class="nav-icon">🏗️</span>Report Builder</button>
         <button class="nav-item" onclick="gotoView('gaps')"><span class="nav-icon">🔍</span>Gap Checker <span id="gap-badge" class="nav-badge" style="display:none">!</span></button>
       </div>
       <div class="nav-section">
@@ -1288,6 +1288,16 @@ function showApp(){
   document.getElementById('sb-name').textContent=USER?.name||'User';
   document.getElementById('sb-role').textContent=(USER?.org||'')+(USER?.role?' · '+USER.role:'');
   if(USER?.role==='admin') document.getElementById('admin-nav-section').style.display='block';
+
+  // Role-gate Report Builder: only visible to executive-level roles
+  const builderAllowedRoles = ['admin','cfo','ceo','executive','manager','department head','senior manager','board member'];
+  const userRoleLower = (USER?.role||'').toLowerCase();
+  const userAccessLevel = (USER?.accessLevel||'').toLowerCase();
+  const canSeeBuilder = builderAllowedRoles.includes(userRoleLower) || userAccessLevel === 'executive' || userAccessLevel === 'senior';
+  const builderNav = document.getElementById('nav-builder');
+  if (builderNav) builderNav.style.display = canSeeBuilder ? 'flex' : 'none';
+  window._canSeeBuilder = canSeeBuilder;
+
   gotoView('dashboard');
   setTimeout(async()=>{
     try{
@@ -1299,6 +1309,10 @@ function showApp(){
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function gotoView(v){
+  if (v === 'builder' && window._canSeeBuilder === false) {
+    toast('🔒 Report Builder is available to executive-level roles only');
+    v = 'dashboard';
+  }
   const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','chat','schedules','myreports','workflows'];
   ALL_VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
@@ -1406,10 +1420,21 @@ async function runAnalysis(){
   let dataText='';
   for(const f of uploadedFiles){dataText+=await readFile(f)+'\n\n';}
   if(!dataText.trim())dataText='[Sample business data: Revenue KES 18.6M up 12%, Cost of Goods KES 11.2M, Gross Margin 39.8%, Operating expenses KES 4.1M, Net profit KES 3.3M, Top SKU: Product A at 34% of revenue, Stock turnover 4.2x, Customer count 1,240 active accounts]';
-  const prompt=`You are SARE Analytics Intelligence — a business intelligence AI for any industry including FMCG, retail, manufacturing, services and finance.\nROLE: ${currentRole.toUpperCase()} — ${ROLE_FOCUS[currentRole]}\nCONTEXT: ${document.getElementById('ctx-input').value||'None.'}\nDATA:\n${dataText.slice(0,6500)}\nRespond ONLY with valid JSON, no markdown:\n{"role":"${currentRole}","summary":"2-sentence executive summary.","kpis":[{"label":"Total Wallet Liability","value":"KES 2.4B","delta":"+12.3%","positive":true},{"label":"Transaction Volume","value":"847K","delta":"+8.7%","positive":true},{"label":"Failed Txn Rate","value":"3.2%","delta":"-0.8%","positive":true},{"label":"Net Revenue","value":"KES 18.6M","delta":"+15.2%","positive":true},{"label":"Dormant Wallets","value":"2,340","delta":"+18.4%","positive":false},{"label":"Settlement Gap","value":"KES 4.1M","delta":"+32%","positive":false}],"swot":{"strengths":["s1","s2","s3","s4"],"weaknesses":["w1","w2","w3"],"opportunities":["o1","o2","o3"],"threats":["t1","t2","t3"]},"insights":[{"title":"t","body":"2-sentence insight with numbers.","type":"danger","badge":"Critical"},{"title":"t","body":"insight.","type":"warning","badge":"Watch"},{"title":"t","body":"insight.","type":"success","badge":"Good"},{"title":"t","body":"insight.","type":"info","badge":"Info"}],"recommendations":["r1","r2","r3","r4","r5"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Mobile Transfers"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["GL Report","Trial Balance","Wallet Liability Summary","Transaction Register","Revenue Summary","Commission Summary","Settlement Summary","Settlement Aging","High Value Transactions Report"],"missing":["Float Account Balance Report","Sanctions Screening Report","SAR Log","Customer Onboarding Report","API Error Report"],"warning":["Dormant Compliance Report (incomplete)","Settlement Reconciliation (partial)"]},"standardChecklist":[{"item":"All 12 WaaS categories covered","status":"warn"},{"item":"GL reconciliation present","status":"pass"},{"item":"Settlement aging attached","status":"pass"},{"item":"Dormant compliance complete","status":"fail"},{"item":"SAP batch report included","status":"fail"},{"item":"Commission reconciliation attached","status":"warn"},{"item":"Audit trail complete","status":"pass"}]}`;
+  const prompt=`You are SARE Analytics Intelligence — an elite business intelligence analyst for FMCG, retail, manufacturing, services and finance businesses.
+
+ROLE: ${currentRole.toUpperCase()} — ${ROLE_FOCUS[currentRole]}
+ADDITIONAL CONTEXT FROM USER: ${document.getElementById('ctx-input').value||'None provided.'}
+
+REPORT DATA:
+${dataText.slice(0,7500)}
+
+ANALYSIS DEPTH REQUIRED: Produce a thorough, specific, evidence-based analysis — not generic statements. Every insight and SWOT point must reference an actual number, trend, or fact from the data above. Avoid vague language like "could be better" — instead state the specific figure, the specific cause, and the specific magnitude of impact.
+
+Respond ONLY with valid JSON, no markdown fences, no preamble:
+{"role":"${currentRole}","summary":"A detailed 3-4 sentence executive summary covering: the overall financial/operational position, the single most important finding, and what requires attention this period. Reference actual figures from the data.","kpis":[{"label":"Metric name","value":"Actual value from data","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 5","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 6","value":"value","delta":"+/-X%","positive":true}],"swot":{"strengths":["Specific strength with the exact figure or trend that proves it","Second specific strength with evidence","Third specific strength with evidence","Fourth specific strength with evidence"],"weaknesses":["Specific weakness with the exact figure that reveals it and why it matters","Second specific weakness with evidence and business impact","Third specific weakness with evidence"],"opportunities":["Specific opportunity quantified where possible (e.g. potential KES value or % improvement)","Second opportunity with rationale","Third opportunity with rationale"],"threats":["Specific threat with likelihood/magnitude and what triggers it","Second threat with context","Third threat with context"]},"insights":[{"title":"Specific, descriptive title naming the actual issue","body":"3-4 sentence deep-dive: state the finding with exact figures, explain WHY it is happening based on the data, explain the business IMPACT if unaddressed, and reference any related figures that support the conclusion.","type":"danger","badge":"Critical"},{"title":"Second specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"},{"title":"Third specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"success","badge":"Good"},{"title":"Fourth specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"info","badge":"Info"},{"title":"Fifth specific finding title if data supports it","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"}],"recommendations":["Specific, actionable recommendation with a timeframe and the expected outcome if implemented","Second recommendation with timeframe and rationale tied to a specific figure","Third recommendation with timeframe and expected outcome","Fourth recommendation with timeframe","Fifth recommendation with timeframe and owner suggestion (e.g. Finance team, Operations)"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Top performing item from data"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["Reports/categories clearly evidenced in the uploaded data"],"missing":["Standard business reports not present in this upload, relevant to ${currentRole}"],"warning":["Reports that appear incomplete or partial based on the data"]},"standardChecklist":[{"item":"Data completeness for this report type","status":"pass"},{"item":"Figures reconcile internally","status":"pass"},{"item":"Period-over-period comparison available","status":"warn"},{"item":"Supporting detail/breakdown present","status":"pass"}]}`;
   try{
     lastAnalysisPrompt = prompt;
-    analysisResult = await callAIJson(prompt, 1000);
+    analysisResult = await callAIJson(prompt, 2500);
   }catch{analysisResult=demoData(currentRole);}
   clearInterval(progressTimer);
   document.getElementById('progress-fill').style.width='100%';
@@ -2797,7 +2822,7 @@ async function viewSubmissionInsights(id) {
       .replace(/['"\\]/g, ' ')
       .replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g, ' ')
       .replace(/\s+/g, ' ')
-      .slice(0, 2000);
+      .slice(0, 3500);
 
     // Call server with structured request
     const resp = await api('/api/analyse-submission', 'POST', {
