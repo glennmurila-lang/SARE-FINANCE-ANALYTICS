@@ -3193,12 +3193,17 @@ function openChatThread(id) {
 function renderChatThread(thread) {
   document.getElementById('chat-thread-title').textContent = thread.title;
 
-  // Report indicator
+  // Report indicator — supports multiple attachments
   const indicator = document.getElementById('chat-report-indicator');
-  if (thread.report) {
-    indicator.innerHTML = `
-      <span class="chat-report-badge">📎 ${thread.report.filename} <span style="cursor:pointer;margin-left:4px;font-weight:700" onclick="event.stopPropagation();detachChatReport()" title="Remove this report">×</span></span>
-      <button class="topbar-btn" style="margin-left:8px;padding:5px 12px;font-size:11px" onclick="document.getElementById('chat-file-input').click()">🔄 Swap report</button>`;
+  const reports = thread.reports || (thread.report ? [thread.report] : []);
+  // Migrate legacy single-report threads
+  if (!thread.reports && thread.report) { thread.reports = [thread.report]; thread.report = null; }
+  if (reports.length > 0) {
+    const chips = reports.map((r, i) =>
+      `<span class="chat-report-badge">📎 ${r.filename} <span style="cursor:pointer;margin-left:4px;font-weight:700" onclick="event.stopPropagation();detachChatReportAt(${i})" title="Remove">×</span></span>`
+    ).join('');
+    indicator.innerHTML = chips +
+      `<button class="topbar-btn" style="margin-left:8px;padding:5px 12px;font-size:11px" onclick="document.getElementById('chat-file-input').click()">➕ Add file</button>`;
     document.getElementById('chat-drop-zone').style.display = 'none';
     document.getElementById('chat-suggestions').style.display = 'flex';
   } else {
@@ -3213,7 +3218,7 @@ function renderChatThread(thread) {
     msgContainer.innerHTML = `<div class="chat-empty-state">
       <div style="font-size:40px;margin-bottom:12px">💬</div>
       <div style="font-size:14px;font-weight:600;color:var(--gray-600);margin-bottom:6px">Start a conversation</div>
-      <div style="font-size:12px;max-width:320px">${thread.report ? 'Ask anything about ' + thread.report.filename : 'Attach a report above, then ask anything.'}</div>
+      <div style="font-size:12px;max-width:320px">${(thread.reports||[]).length > 0 ? 'Ask anything about the ' + (thread.reports.length > 1 ? thread.reports.length + ' attached reports' : 'attached report') : 'Attach a report above, then ask anything.'}</div>
     </div>`;
   } else {
     msgContainer.innerHTML = thread.messages.map(m => renderChatMessage(m)).join('');
@@ -3248,20 +3253,29 @@ async function attachChatReport(file) {
   const thread = chatThreads.find(t => t.id === currentChatThreadId);
   if (!thread) return;
 
-  const wasSwap = !!thread.report && thread.report.filename !== file.name;
-  const previousFilename = thread.report?.filename;
+  // Initialise reports array if needed
+  if (!thread.reports) thread.reports = thread.report ? [thread.report] : [];
+  thread.report = null; // clear legacy field
 
-  thread.report = { filename: file.name, dataText: dataText };
-  if (thread.title === 'New conversation' || !wasSwap) {
+  const alreadyAttached = thread.reports.find(r => r.filename === file.name);
+  if (alreadyAttached) {
+    toast('⚠️ ' + file.name + ' is already attached');
+    return;
+  }
+
+  const isFirstFile = thread.reports.length === 0;
+  thread.reports.push({ filename: file.name, dataText: dataText });
+
+  if (thread.title === 'New conversation' || isFirstFile) {
     thread.title = file.name.replace(/\.[^.]+$/, '');
   }
-  currentChatReport = thread.report;
+  currentChatReport = thread.reports[thread.reports.length - 1];
 
-  // Add a visible system note in the conversation when swapping mid-chat
-  if (wasSwap && thread.messages.length > 0) {
+  // Notify in conversation when adding extra file mid-chat
+  if (!isFirstFile && thread.messages.length > 0) {
     thread.messages.push({
       role: 'assistant',
-      content: `📎 **Report switched.** I'm now looking at **${file.name}** instead of ${previousFilename}. Previous answers in this conversation referred to the old file — ask me again if you need anything re-checked against this new report.`,
+      content: `📎 **Additional file attached:** **${file.name}**. I now have access to ${thread.reports.length} reports in this conversation. You can ask me to compare them or analyse each separately.`,
       timestamp: new Date().toISOString()
     });
   }
@@ -3272,14 +3286,16 @@ async function attachChatReport(file) {
   toast('📎 ' + file.name + ' attached — ask anything about it');
 }
 
-function detachChatReport() {
+function detachChatReportAt(index) {
   const thread = chatThreads.find(t => t.id === currentChatThreadId);
   if (!thread) return;
+  if (!thread.reports) thread.reports = thread.report ? [thread.report] : [];
   thread.report = null;
-  currentChatReport = null;
+  const removed = thread.reports.splice(index, 1)[0];
+  currentChatReport = thread.reports[0] || null;
   saveChatThreadsToStorage();
   renderChatThread(thread);
-  toast('Report detached');
+  toast('Removed: ' + (removed?.filename || 'file'));
 }
 
 // ── Send messages ───────────────────────────────────────────────────────────────
@@ -3328,14 +3344,18 @@ async function sendChatMessage() {
     // Build conversation history for context (last 10 exchanges)
     const recentHistory = thread.messages.slice(-20).map(m => ({ role: m.role, content: m.content }));
 
-    const reportContext = thread.report
-      ? `\n\nATTACHED REPORT: ${thread.report.filename}\nDATA:\n${thread.report.dataText}\n\n` +
-        `CRITICAL ARITHMETIC RULES:\n` +
-        `1. When asked to sum or total any figures, add EVERY individual row value from the raw data above — never estimate, group, or approximate.\n` +
-        `2. Always cross-check your sum against any control totals already present in the data (e.g. a Summary sheet total). If they differ, flag this.\n` +
-        `3. Show your full working: list all values you are adding, then the final sum.\n` +
-        `4. Never invent, round, or interpolate numbers. Only use figures that appear literally in the data above.\n` +
-        `5. If asked about a column (e.g. "money out"), identify the exact column before summing it.`
+    // Support multiple attached reports
+    const threadReports = thread.reports || (thread.report ? [thread.report] : []);
+    const arithmeticRules = `\nCRITICAL ARITHMETIC RULES:\n` +
+      `1. Add EVERY individual row value from the raw data — never estimate, group, or approximate.\n` +
+      `2. Cross-check your sum against any control totals already in the data (e.g. Summary sheet). If they differ, flag it.\n` +
+      `3. Show full working: list all values you are adding, then the final sum.\n` +
+      `4. Never invent, round, or interpolate. Only use figures literally present in the data.\n` +
+      `5. Identify the exact column before summing it.`;
+    const reportContext = threadReports.length > 0
+      ? threadReports.map((r, i) =>
+          `\n\nATTACHED REPORT ${threadReports.length > 1 ? (i+1) + ' of ' + threadReports.length + ' — ' : ''}${r.filename}:\n${r.dataText}`
+        ).join('') + arithmeticRules
       : '';
 
     const systemPrompt = `You are SARE Analytics AI — a precise financial analysis assistant. ` +
