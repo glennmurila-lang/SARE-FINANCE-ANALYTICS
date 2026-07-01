@@ -3222,7 +3222,7 @@ function renderChatThread(thread) {
 }
 
 function renderChatMessage(m) {
-  const initials = m.role === 'user' ? (USER?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : 'AI';
+  const initials = m.role === 'user' ? (USER?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : 'S';
   const time = new Date(m.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   const bodyHtml = m.role === 'assistant' ? markdownToHtml(m.content) : m.content.replace(/\n/g,'<br>');
   return `<div class="chat-msg ${m.role}">
@@ -3316,7 +3316,7 @@ async function sendChatMessage() {
   // Show typing indicator
   const msgContainer = document.getElementById('chat-messages');
   msgContainer.innerHTML += `<div class="chat-msg assistant" id="chat-typing-indicator">
-    <div class="chat-msg-avatar">AI</div>
+    <div class="chat-msg-avatar">S</div>
     <div class="chat-msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>
   </div>`;
   msgContainer.scrollTop = msgContainer.scrollHeight;
@@ -3329,16 +3329,27 @@ async function sendChatMessage() {
     const recentHistory = thread.messages.slice(-20).map(m => ({ role: m.role, content: m.content }));
 
     const reportContext = thread.report
-      ? `\n\nATTACHED REPORT: ${thread.report.filename}\nDATA:\n${thread.report.dataText}\n\nUse this report data to answer accurately. If asked to verify or double-check a number, recalculate it directly from the data shown above rather than guessing.`
+      ? `\n\nATTACHED REPORT: ${thread.report.filename}\nDATA:\n${thread.report.dataText}\n\n` +
+        `CRITICAL ARITHMETIC RULES:\n` +
+        `1. When asked to sum or total any figures, add EVERY individual row value from the raw data above — never estimate, group, or approximate.\n` +
+        `2. Always cross-check your sum against any control totals already present in the data (e.g. a Summary sheet total). If they differ, flag this.\n` +
+        `3. Show your full working: list all values you are adding, then the final sum.\n` +
+        `4. Never invent, round, or interpolate numbers. Only use figures that appear literally in the data above.\n` +
+        `5. If asked about a column (e.g. "money out"), identify the exact column before summing it.`
       : '';
 
-    const systemPrompt = `You are SARE Analytics AI — a business intelligence assistant for FMCG and general business. Be conversational but precise. When given a report, cite specific numbers from it. If you are unsure or the data does not contain something asked, say so honestly rather than inventing numbers. Keep responses focused and not overly long unless asked for detail. Use markdown formatting (tables, bold, lists) where helpful.${reportContext}`;
+    const systemPrompt = `You are SARE Analytics AI — a precise financial analysis assistant. ` +
+      `When working with numbers: always sum row by row from raw data, never estimate, show arithmetic workings, ` +
+      `and cross-check against any totals already in the report. ` +
+      `If data is missing or unclear, say so explicitly rather than guessing.` +
+      reportContext;
 
     const messages = [
       { role: 'user', content: systemPrompt + '\n\nConversation so far, respond to the latest message:\n' + recentHistory.map(m => (m.role==='user'?'User: ':'Assistant: ') + m.content).join('\n') }
     ];
 
-    const answer = await callAI(messages[0].content, 1200);
+    // Always skip cache for chat — each conversation is unique, caching causes inconsistency between users
+    const answer = await callAI(messages[0].content, 1500, true);
 
     // Remove typing indicator
     document.getElementById('chat-typing-indicator')?.remove();
