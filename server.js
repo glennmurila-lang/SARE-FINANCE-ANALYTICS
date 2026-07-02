@@ -519,6 +519,8 @@ CRITICAL ACCURACY RULES:
 3. Be literal and consistent - the same data should always produce the same numbers
 4. If a figure cannot be determined from the data, say "Not available" rather than guessing
 
+DO NOT ASSUME BUSINESS TYPE: Do not assume this is a wallet, fintech, or payments business unless the data itself contains wallet balances, transaction settlement, or e-money compliance figures. Base the summary, KPIs, SWOT, insights and recommendations entirely on what is actually present in the data — describe the business in whatever terms actually apply (FMCG, retail, manufacturing, services, wallet, etc.) rather than defaulting to wallet/fintech language.
+
 ANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact. Avoid generic statements - be specific to this data.
 
 Return this exact JSON structure with real values based on the data:
@@ -586,12 +588,17 @@ app.post('/api/admin/test-email', auth, adminOnly, async (req,res) => {
 // ── Report History ────────────────────────────────────────────────────────────
 app.post('/api/history', auth, async (req,res) => {
   try {
-    const { role, perspective, filename, summary, kpis, swot, insights, recommendations, trends, gapChecker, rawData, visibility, sharedWith } = req.body;
+    const { role, perspective, filename, summary, kpis, swot, insights, recommendations, trends, gapChecker, rawData, visibility, sharedWith, files } = req.body;
+    // files: [{ name, mime, data }] — data is base64-encoded file content from the browser.
+    // Stored so the person can always redownload exactly what they originally uploaded.
+    const attachments = (Array.isArray(files) ? files : [])
+      .filter(f => f && f.data)
+      .map(f => ({ filename: f.name || 'file', mime: f.mime || 'application/octet-stream', data: f.data }));
     const record = await historyDb.insert({
       userId: req.user.id, userName: req.user.name,
       department: req.user.department, org: req.user.org,
       role, perspective, filename, summary, kpis, swot, insights,
-      recommendations, trends, gapChecker, rawData,
+      recommendations, trends, gapChecker, rawData, attachments,
       visibility: visibility || 'private',  // private | department | organisation | shared
       sharedWith: sharedWith || [],          // array of user IDs if visibility is 'shared'
       createdAt: new Date()
@@ -599,6 +606,16 @@ app.post('/api/history', auth, async (req,res) => {
     res.json({ id: record._id, success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// Strip base64 attachment payloads down to lightweight metadata for list/detail views —
+// the actual bytes are only ever sent by the dedicated download endpoint below.
+function attachmentMeta(record) {
+  const attachments = (record.attachments || []).map((a, i) => ({
+    index: i, filename: a.filename, mime: a.mime,
+    size: a.data ? Buffer.byteLength(a.data, 'base64') : 0
+  }));
+  return { ...record, attachments };
+}
 
 app.get('/api/history', auth, async (req,res) => {
   try {
@@ -617,7 +634,7 @@ app.get('/api/history', auth, async (req,res) => {
       return false;
     });
 
-    res.json(visible.map(r => ({ ...r, id: r._id })));
+    res.json(visible.map(r => attachmentMeta({ ...r, id: r._id })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -634,7 +651,29 @@ app.get('/api/history/:id', auth, async (req,res) => {
       (vis === 'department' && record.department === req.user.department) ||
       (vis === 'shared' && (record.sharedWith||[]).includes(req.user.id));
     if (!canSee) return res.status(403).json({ error: 'You do not have permission to view this analysis' });
-    res.json({ ...record, id: record._id });
+    res.json(attachmentMeta({ ...record, id: record._id }));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Download the original file(s) attached to a saved analysis ────────────────
+app.get('/api/history/:id/download/:index', auth, async (req,res) => {
+  try {
+    const record = await historyDb.findOne({ _id: req.params.id });
+    if (!record) return res.status(404).json({ error: 'Not found' });
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = record.userId === req.user.id;
+    const vis = record.visibility || 'department';
+    const canSee = isAdmin || isOwner ||
+      (vis === 'organisation') ||
+      (vis === 'department' && record.department === req.user.department) ||
+      (vis === 'shared' && (record.sharedWith||[]).includes(req.user.id));
+    if (!canSee) return res.status(403).json({ error: 'You do not have permission to download this file' });
+    const idx = parseInt(req.params.index, 10);
+    const attachment = (record.attachments || [])[idx];
+    if (!attachment || !attachment.data) return res.status(404).json({ error: 'File not available — it may not have been saved with this analysis' });
+    res.setHeader('Content-Disposition', `attachment; filename="${(attachment.filename||'report').replace(/"/g,'')}"`);
+    res.setHeader('Content-Type', attachment.mime || 'application/octet-stream');
+    res.send(Buffer.from(attachment.data, 'base64'));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -809,7 +848,7 @@ app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
       try {
         const cleanData = reportText.replace(/['"\\]/g, ' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g, ' ').replace(/\s+/g, ' ');
         const role = schedule.perspective || 'cfo';
-        const prompt = `You are an elite business intelligence analyst. Analyse this ${req.user.department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.\n\nReport: ${schedule.title}\nSubmitted by: ${req.user.name}\nDepartment: ${req.user.department}\nData:\n${cleanData}\n\nCRITICAL ACCURACY RULES:\n1. Base every number strictly on the data provided above - never estimate or invent figures\n2. If you calculate a total, sum the exact raw figures shown - do not round creatively\n3. Be literal and consistent - the same data should always produce the same numbers\n4. If a figure cannot be determined from the data, say "Not available" rather than guessing\n\nANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact.\n\nReturn this exact JSON structure:\n{"role":"${role}","summary":"3-sentence summary of overall position, key finding, and what needs attention","kpis":[{"label":"Metric from data","value":"KES X","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with exact figure"],"weaknesses":["Specific weakness with exact figure and impact"],"opportunities":["Specific opportunity, quantified"],"threats":["Specific threat with magnitude"]},"insights":[{"title":"Specific finding","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second finding","body":"2-3 sentence deep-dive","type":"danger","badge":"Critical"},{"title":"Third finding","body":"2-3 sentence deep-dive","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
+        const prompt = `You are an elite business intelligence analyst. Analyse this ${req.user.department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.\n\nReport: ${schedule.title}\nSubmitted by: ${req.user.name}\nDepartment: ${req.user.department}\nData:\n${cleanData}\n\nCRITICAL ACCURACY RULES:\n1. Base every number strictly on the data provided above - never estimate or invent figures\n2. If you calculate a total, sum the exact raw figures shown - do not round creatively\n3. Be literal and consistent - the same data should always produce the same numbers\n4. If a figure cannot be determined from the data, say "Not available" rather than guessing\n\nDO NOT ASSUME BUSINESS TYPE: Do not assume this is a wallet, fintech, or payments business unless the data itself contains wallet balances, transaction settlement, or e-money compliance figures. Describe the business in whatever terms actually apply based on the data (FMCG, retail, manufacturing, services, wallet, etc.) — never default to wallet/fintech language that has no basis in the data.\n\nANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact.\n\nReturn this exact JSON structure:\n{"role":"${role}","summary":"3-sentence summary of overall position, key finding, and what needs attention","kpis":[{"label":"Metric from data","value":"KES X","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with exact figure"],"weaknesses":["Specific weakness with exact figure and impact"],"opportunities":["Specific opportunity, quantified"],"threats":["Specific threat with magnitude"]},"insights":[{"title":"Specific finding","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second finding","body":"2-3 sentence deep-dive","type":"danger","badge":"Critical"},{"title":"Third finding","body":"2-3 sentence deep-dive","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
         const cacheKey = hashPrompt(prompt + '|autoanalysis|' + role);
         const callFn = async () => {
           const message = await anthropic.messages.create({
