@@ -128,6 +128,19 @@ function passwordResetEmail(name, email, newPassword) {
     <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>`);
 }
 
+function forgotPasswordEmail(name, email, newPassword) {
+  return emailBase(`
+    <div class="greeting">Password reset requested — ${name}</div>
+    <p class="text">We received a request to reset the password for your SARE Analytics account. A new temporary password has been generated below.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Login URL</span><span class="cred-value">${APP_URL}</span></div>
+      <div class="cred-row"><span class="cred-label">Email</span><span class="cred-value">${email}</span></div>
+      <div class="cred-row"><span class="cred-label">New password</span><span class="cred-value">${newPassword}</span></div>
+    </div>
+    <a href="${APP_URL}" class="btn">Sign in to SARE Analytics →</a>
+    <div class="notice">🔒 For security, please change this password immediately after signing in. If you did not request this reset, contact your administrator right away.</div>`);
+}
+
 function accountStatusEmail(name, active) {
   return emailBase(`
     <div class="greeting">Account ${active ? 'activated' : 'disabled'} — ${name}</div>
@@ -214,6 +227,7 @@ app.use(cors());
 app.use(express.json({ limit:'50mb' }));
 app.use(express.static(path.join(__dirname,'public')));
 app.use('/api/', rateLimit({ windowMs:15*60*1000, max:300 }));
+const forgotPasswordLimiter = rateLimit({ windowMs:15*60*1000, max:5, standardHeaders:true, legacyHeaders:false, message:{ error:'Too many reset requests. Please try again later.' } });
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
@@ -257,6 +271,40 @@ app.post('/api/auth/register', async (req,res) => {
     const token = jwt.sign({ id:user._id, email:user.email, name:user.name, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org }, JWT_SECRET, { expiresIn:'8h' });
     res.json({ token, user:{ id:user._id, name:user.name, email:user.email, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org } });
   } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── Forgot password (self-service) ────────────────────────────────────────────
+// Generates a fresh temporary password, emails it, and invalidates the old one.
+// Always returns a generic success message so we never reveal whether an email
+// address is registered (prevents account enumeration).
+function generateTempPassword() {
+  // 12 chars, mixed case + digits, no ambiguous-looking characters
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pass = '';
+  const bytes = crypto.randomBytes(12);
+  for (let i = 0; i < 12; i++) pass += alphabet[bytes[i] % alphabet.length];
+  return pass;
+}
+
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) => {
+  const genericResponse = { success: true, message: 'If that email address is registered, a password reset has been sent.' };
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const user = await db.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+    if (!user || !user.active) {
+      // Do not reveal whether the account exists or is disabled
+      return res.json(genericResponse);
+    }
+    const newPassword = generateTempPassword();
+    await db.update({ _id: user._id }, { $set: { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: true } });
+    await sendEmail(user.email, 'Your SARE Analytics password has been reset', forgotPasswordEmail(user.name, user.email, newPassword));
+    res.json(genericResponse);
+  } catch (e) {
+    console.error('forgot-password error:', e.message);
+    // Still return the generic response — don't leak error details to the client
+    res.json(genericResponse);
+  }
 });
 
 app.get('/api/auth/me', auth, (req,res) => res.json(req.user));
