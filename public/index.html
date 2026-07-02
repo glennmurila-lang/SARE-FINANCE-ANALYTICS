@@ -2808,9 +2808,8 @@ async function loadWorkflows() {
         </div>
         ${s.notes ? `<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;font-style:italic">"${s.notes}"</div>` : ''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="tbl-btn primary" style="background:var(--blue);color:#fff;border-color:var(--blue)" onclick="viewSubmissionInsights('${s.id||s._id}')">✦ View AI Insights</button>
-          <button class="tbl-btn" onclick="loadSubmissionIntoQuery('${s.id||s._id}')">💬 Query report</button>
-          <button class="tbl-btn" onclick="downloadSubmission('${s.id||s._id}','${(s.filename||'report').replace(/'/g,'')}')">⬇ Download file</button>
+          <button class="tbl-btn primary" style="background:var(--blue);color:#fff;border-color:var(--blue)" onclick="openSubmissionPanel('${s.id||s._id}')">${s.autoAnalysis ? '✦ View insights & query' : s.autoAnalysisError ? '⚠ View (analysis failed)' : '⏳ Opening...'}</button>
+          <button class="tbl-btn" onclick="downloadSubmission('${s.id||s._id}','${(s.filename||'report').replace(/'/g,'')}')">⬇ Download</button>
         </div>
       </div>`).join('');
   } catch(e) {
@@ -2820,45 +2819,229 @@ async function loadWorkflows() {
   }
 }
 
-async function viewSubmissionInsights(id) {
+// ── Submission panel: auto-analysis + inline query ────────────────────────────
+let submissionPanelData = null;
+let submissionQueryHistory = [];
+
+async function openSubmissionPanel(id) {
+  submissionQueryHistory = [];
+  showSubmissionPanel({ _id: id, scheduleTitle: 'Loading...', submittedByName: '', autoAnalysis: null, _loading: true });
   try {
-    toast('Analysing report...');
+    const sub = await api('/api/submissions/' + id);
+    submissionPanelData = sub;
+    if (sub.autoAnalysis) {
+      showSubmissionPanel(sub);
+    } else if (sub.autoAnalysisError) {
+      showSubmissionPanel(sub);
+    } else {
+      showSubmissionPanel({ ...sub, _polling: true });
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const check = await api('/api/submissions/' + id + '/analysis');
+          if (check.ready) {
+            clearInterval(poll);
+            sub.autoAnalysis = check.analysis;
+            submissionPanelData = sub;
+            showSubmissionPanel(sub);
+          } else if (attempts >= 20 || check.error) {
+            clearInterval(poll);
+            sub._pollTimeout = true;
+            sub._pollError = check.error;
+            showSubmissionPanel(sub);
+          }
+        } catch { clearInterval(poll); }
+      }, 3000);
+    }
+  } catch(e) {
+    toast('Error loading submission: ' + e.message);
+    const ov = document.getElementById('submission-panel-overlay');
+    if (ov) ov.style.display = 'none';
+  }
+}
+
+function showSubmissionPanel(sub) {
+  let overlay = document.getElementById('submission-panel-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'submission-panel-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto';
+    overlay.onclick = e => { if(e.target===overlay) closeSubmissionPanel(); };
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'flex';
+
+  const a = sub.autoAnalysis;
+  const sid = sub._id || sub.id || '';
+
+  const kpiHtml = a ? a.kpis.map(k =>
+    `<div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:10px;color:var(--gray-400);text-transform:uppercase;margin-bottom:4px">${k.label}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--navy)">${k.value}</div>
+      <div style="font-size:11px;color:${k.positive?'#16a34a':'#dc2626'};margin-top:2px">${k.delta||''}</div>
+    </div>`).join('') : '';
+
+  const insightHtml = a ? a.insights.map(i =>
+    `<div style="border-left:3px solid ${i.type==='danger'?'#dc2626':i.type==='warning'?'#f59e0b':'var(--blue)'};padding:10px 12px;background:var(--gray-50);border-radius:0 6px 6px 0;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:3px">${i.title} <span style="font-size:10px;background:${i.type==='danger'?'#dc2626':i.type==='warning'?'#f59e0b':'var(--blue)'};color:#fff;padding:1px 6px;border-radius:10px">${i.badge}</span></div>
+      <div style="font-size:12px;color:var(--gray-600)">${i.body}</div>
+    </div>`).join('') : '';
+
+  const swotHtml = a ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      ${[['Strengths','#16a34a','S',a.swot.strengths],['Weaknesses','#dc2626','W',a.swot.weaknesses],['Opportunities','var(--blue)','O',a.swot.opportunities],['Threats','#f59e0b','T',a.swot.threats]].map(([label,color,letter,items])=>`
+        <div style="border:1px solid var(--gray-100);border-radius:8px;padding:10px">
+          <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;margin-bottom:6px">${letter} — ${label}</div>
+          ${(items||[]).map(pt=>`<div style="font-size:11px;color:var(--gray-600);margin-bottom:4px">• ${pt}</div>`).join('')}
+        </div>`).join('')}
+    </div>` : '';
+
+  const recsHtml = a ? a.recommendations.map((r,i)=>`<div style="font-size:12px;color:var(--gray-600);margin-bottom:6px;display:flex;gap:8px"><span style="font-weight:700;color:var(--blue);min-width:16px">${i+1}.</span>${r}</div>`).join('') : '';
+
+  const statusHtml = sub._loading
+    ? `<div style="text-align:center;padding:40px;color:var(--gray-400)">⏳ Loading...</div>`
+    : sub._polling
+    ? `<div style="text-align:center;padding:30px;color:var(--gray-400)"><div style="font-size:28px;margin-bottom:8px">🤖</div><div style="font-size:13px;font-weight:600;color:var(--navy)">AI is analysing this report</div><div style="font-size:11px;margin-top:4px">Usually takes 10–20 seconds. This will update automatically.</div></div>`
+    : (sub._pollTimeout||sub._pollError||sub.autoAnalysisError)
+    ? `<div style="text-align:center;padding:16px;color:#dc2626;font-size:12px">⚠ Analysis not ready yet — <button class="tbl-btn" onclick="retriggerAnalysis('${sid}')">↻ Analyse now</button></div>`
+    : '';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;width:100%;max-width:760px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+      <div style="padding:20px 24px;border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:flex-start;position:sticky;top:0;background:#fff;z-index:1">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--navy)">${sub.scheduleTitle||'Submission'}</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">
+            ${sub.submittedByName?`Submitted by ${sub.submittedByName}`:''}
+            ${sub.department?` · ${sub.department}`:''}
+            ${sub.createdAt?` · ${new Date(sub.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`:''}
+            ${a?`<span style="color:#16a34a;margin-left:8px">✓ Analysis ready</span>`:''}
+          </div>
+        </div>
+        <button onclick="closeSubmissionPanel()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--gray-400);line-height:1">×</button>
+      </div>
+      <div style="padding:20px 24px">
+        ${statusHtml}
+        ${a ? `
+          <div style="font-size:13px;color:var(--gray-600);background:#f0f7ff;border-radius:8px;padding:12px;margin-bottom:16px;border-left:3px solid var(--blue);line-height:1.6">${a.summary}</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">${kpiHtml}</div>
+          ${swotHtml}
+          <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Key Insights</div>
+          ${insightHtml}
+          <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Recommendations</div>
+          ${recsHtml}
+          <button class="tbl-btn" style="margin-bottom:16px;font-size:11px" onclick="viewFullInsights('${sid}')">↗ Open full SWOT view</button>
+        ` : ''}
+        <div style="border-top:1px solid var(--gray-100);padding-top:16px;margin-top:4px">
+          <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px">💬 Query this submission</div>
+          <div id="sub-query-history" style="max-height:240px;overflow-y:auto;margin-bottom:10px;display:flex;flex-direction:column;gap:8px"></div>
+          <div style="display:flex;gap:8px">
+            <input id="sub-query-input" class="form-input" placeholder="Ask anything about this report…" style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendSubmissionQuery();}">
+            <button class="btn btn-primary" style="padding:0 16px;font-size:13px;white-space:nowrap" onclick="sendSubmissionQuery()">Send</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+            ${["Summarise key figures","What are the risks?","Verify the totals","What action is needed first?"].map(q=>`<button class="tbl-btn" style="font-size:11px" onclick="document.getElementById('sub-query-input').value='${q}';sendSubmissionQuery()">${q}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  renderSubmissionQueryHistory();
+}
+
+function closeSubmissionPanel() {
+  const overlay = document.getElementById('submission-panel-overlay');
+  if (overlay) overlay.style.display = 'none';
+  submissionPanelData = null;
+  submissionQueryHistory = [];
+}
+
+function renderSubmissionQueryHistory() {
+  const container = document.getElementById('sub-query-history');
+  if (!container || submissionQueryHistory.length === 0) { if(container) container.innerHTML=''; return; }
+  container.innerHTML = submissionQueryHistory.map(m => `
+    <div style="display:flex;gap:8px;${m.role==='user'?'flex-direction:row-reverse':''}">
+      <div style="width:24px;height:24px;border-radius:50%;background:${m.role==='user'?'var(--blue)':'var(--navy)'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${m.role==='user'?(USER&&USER.name?USER.name[0].toUpperCase():'U'):'S'}</div>
+      <div style="max-width:85%;background:${m.role==='user'?'var(--blue)':'var(--gray-50)'};color:${m.role==='user'?'#fff':'var(--navy)'};border-radius:10px;padding:8px 12px;font-size:12px;line-height:1.5">${m.role==='assistant'?markdownToHtml(m.content):m.content.replace(/</g,'&lt;')}</div>
+    </div>`).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendSubmissionQuery() {
+  const input = document.getElementById('sub-query-input');
+  if (!input) return;
+  const question = input.value.trim();
+  if (!question || !submissionPanelData) return;
+  input.value = '';
+  submissionQueryHistory.push({ role: 'user', content: question });
+  submissionQueryHistory.push({ role: 'assistant', content: '...' });
+  renderSubmissionQueryHistory();
+  try {
+    const sub = submissionPanelData;
+    const dataCtx = sub.reportText ? `
+RAW DATA:
+${sub.reportText}` : '';
+    const analysisCtx = sub.autoAnalysis ? `
+AI ANALYSIS: ${sub.autoAnalysis.summary}
+KPIs: ${sub.autoAnalysis.kpis.map(k=>k.label+': '+k.value).join(', ')}` : '';
+    const history = submissionQueryHistory.slice(0,-1).slice(-10).map(m=>(m.role==='user'?'User: ':'Assistant: ')+m.content).join('\n');
+    const prompt = `You are SARE Analytics AI answering questions about a submitted report.
+
+Report: ${sub.scheduleTitle}
+Submitted by: ${sub.submittedByName}
+Department: ${sub.department}${analysisCtx}${dataCtx}
+
+When asked about figures, calculate row by row from raw data. Never estimate. Cross-check against any summary totals in the data.
+
+Conversation:
+${history}
+User: ${question}
+Assistant:`;
+    const answer = await callAI(prompt, 800, true);
+    submissionQueryHistory[submissionQueryHistory.length-1] = { role: 'assistant', content: answer };
+  } catch(e) {
+    submissionQueryHistory[submissionQueryHistory.length-1] = { role: 'assistant', content: '⚠ Error: ' + e.message };
+  }
+  renderSubmissionQueryHistory();
+}
+
+async function retriggerAnalysis(id) {
+  toast('Analysing now...');
+  try {
+    const sub = await api('/api/submissions/' + id);
+    const cleanData = (sub.reportText||sub.scheduleTitle||'').replace(/['"\\]/g,' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g,' ').replace(/\s+/g,' ');
+    const resp = await api('/api/analyse-submission','POST',{ title:sub.scheduleTitle, submitter:sub.submittedByName, department:sub.department||'Finance', role:'cfo', data:cleanData, skipCache:true });
+    if (resp.result) {
+      sub.autoAnalysis = resp.result;
+      submissionPanelData = sub;
+      showSubmissionPanel(sub);
+      toast('Analysis complete!');
+    } else { toast('Failed: ' + (resp.error||'Unknown error')); }
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function viewFullInsights(id) {
+  closeSubmissionPanel();
+  try {
+    toast('Loading full analysis...');
     const sub = await api('/api/submissions/' + id);
     const schedule = allSchedules.find(s => s.id === sub.scheduleId || s._id === sub.scheduleId);
     currentRole = schedule?.perspective || 'cfo';
-
-    // Clean data - remove all special chars that break JSON
-    const cleanData = (sub.reportText || sub.scheduleTitle)
-      .replace(/['"\\]/g, ' ')
-      .replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .slice(0, 3500);
-
-    // Call server with structured request
-    const resp = await api('/api/analyse-submission', 'POST', {
-      title: sub.scheduleTitle,
-      submitter: sub.submittedByName,
-      department: sub.department || 'Finance',
-      role: currentRole,
-      data: cleanData
-    });
-
-    if (!resp.result) throw new Error(resp.error || 'No result returned');
-
-    const result = resp.result;
+    let result = sub.autoAnalysis;
+    if (!result) {
+      const cleanData = (sub.reportText||sub.scheduleTitle||'').replace(/['"\\]/g,' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g,' ').replace(/\s+/g,' ').slice(0,3500);
+      const resp = await api('/api/analyse-submission','POST',{ title:sub.scheduleTitle, submitter:sub.submittedByName, department:sub.department||'Finance', role:currentRole, data:cleanData });
+      if (!resp.result) throw new Error(resp.error||'No result');
+      result = resp.result;
+    }
     result.role = currentRole;
     analysisResult = result;
     populateAll(result);
     gotoView('swot');
-    toast('Insights ready!');
+    toast('Full insights loaded!');
     try { saveToHistory(result, sub.scheduleTitle); } catch(e){}
-
-  } catch(e) {
-    console.error('Insights error:', e.message);
-    toast('Error: ' + e.message);
-  }
+  } catch(e) { toast('Error: ' + e.message); }
 }
-
 
 async function downloadSubmission(id, filename) {
   try {
@@ -2879,15 +3062,6 @@ async function downloadSubmission(id, filename) {
     URL.revokeObjectURL(url);
     toast('Downloading ' + filename);
   } catch(e) { toast('Download failed: ' + e.message); }
-}
-
-async function loadSubmissionIntoQuery(id) {
-  try {
-    const sub = await api('/api/submissions/' + id);
-    currentQueryContext = { summary: sub.scheduleTitle + ' — submitted by ' + sub.submittedByName, filename: sub.filename, kpis:[], swot:{}, insights:[], recommendations:[] };
-    gotoView('query');
-    toast('Report loaded into Query Engine');
-  } catch(e) { toast('Error: ' + e.message); }
 }
 
 // ── Create/edit schedule modal ────────────────────────────────────────────────
