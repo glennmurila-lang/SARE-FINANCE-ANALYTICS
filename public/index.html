@@ -124,14 +124,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite}
 /* METRICS */
-.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
-.metric-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm);transition:all 0.2s}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;align-items:stretch}
+.metric-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm);transition:all 0.2s;display:flex;flex-direction:column;gap:6px;min-height:98px}
 .metric-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
 .metric-card.danger{background:linear-gradient(135deg,#FFF0F0,#FFF5F5);border-color:#FECACA}
 .metric-card.success{background:linear-gradient(135deg,#E6FAF2,#F0FDF9);border-color:#A7F3D0}
-.metric-label{font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px}
-.metric-value{font-size:20px;font-weight:700;color:var(--navy);letter-spacing:-0.03em;line-height:1.1}
-.metric-delta{font-size:11px;font-weight:600;margin-top:4px}
+.metric-label{font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.metric-value{font-size:18px;font-weight:700;color:var(--navy);letter-spacing:-0.02em;line-height:1.2;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.metric-delta{font-size:11px;font-weight:600;margin-top:auto;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .delta-pos{color:var(--green)}.delta-neg{color:var(--red)}
 /* SWOT */
 .swot-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
@@ -1571,6 +1571,12 @@ ANALYSIS DEPTH REQUIRED: Produce a thorough, specific, evidence-based analysis �
 
 CRITICAL — DO NOT ASSUME BUSINESS TYPE: Do not assume this is a wallet, fintech, or payments business unless the uploaded data itself contains wallet balances, transaction settlement, or e-money compliance figures. Base the summary, KPIs, SWOT, insights and recommendations ENTIRELY on what is actually present in the data above — if it is FMCG, retail, manufacturing, or any other business, describe it in those terms (revenue, COGS, margin, stock turnover, SKUs, channels, etc.) and do not invent wallet/settlement/dormant-account language that has no basis in the data.
 
+CRITICAL — KPI CARDS MUST BE SHORT (they render as small dashboard tiles, not sentences):
+- "label": max ~5 words (e.g. "Total Revenue", "Gross Margin").
+- "value": ONLY the headline number/amount — e.g. "KES 660.7M", "155 SKUs", "39.8%". Never append explanatory clauses like "(130 with non-zero sales)" or "— single period" to the value. Round large currency figures to 1 decimal with M/K suffixes (KES 660.7M, not KES 660,659,877) so they fit a small card at a glance.
+- "delta": ONLY a short change indicator, max ~4 words — e.g. "+12.3%", "N/A", "-2.6pts", "vs last period". Never put a full explanatory sentence here (e.g. "COGS exceeds Revenue by KES 17,003,326" is NOT a valid delta).
+- Any nuance, caveat, or explanation that doesn't fit those limits belongs in "insights" or "swot", not in a KPI card.
+
 Respond ONLY with valid JSON, no markdown fences, no preamble:
 {"role":"${currentRole}","summary":"A detailed 3-4 sentence executive summary covering: the overall financial/operational position, the single most important finding, and what requires attention this period. Reference actual figures from the data. Use terminology that matches the actual business type shown in the data — do not default to wallet/fintech language.","kpis":[{"label":"Metric name","value":"Actual value from data","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 5","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 6","value":"value","delta":"+/-X%","positive":true}],"swot":{"strengths":["Specific strength with the exact figure or trend that proves it","Second specific strength with evidence","Third specific strength with evidence","Fourth specific strength with evidence"],"weaknesses":["Specific weakness with the exact figure that reveals it and why it matters","Second specific weakness with evidence and business impact","Third specific weakness with evidence"],"opportunities":["Specific opportunity quantified where possible (e.g. potential KES value or % improvement)","Second opportunity with rationale","Third opportunity with rationale"],"threats":["Specific threat with likelihood/magnitude and what triggers it","Second threat with context","Third threat with context"]},"insights":[{"title":"Specific, descriptive title naming the actual issue","body":"3-4 sentence deep-dive: state the finding with exact figures, explain WHY it is happening based on the data, explain the business IMPACT if unaddressed, and reference any related figures that support the conclusion.","type":"danger","badge":"Critical"},{"title":"Second specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"},{"title":"Third specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"success","badge":"Good"},{"title":"Fourth specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"info","badge":"Info"},{"title":"Fifth specific finding title if data supports it","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"}],"recommendations":["Specific, actionable recommendation with a timeframe and the expected outcome if implemented","Second recommendation with timeframe and rationale tied to a specific figure","Third recommendation with timeframe and expected outcome","Fourth recommendation with timeframe","Fifth recommendation with timeframe and owner suggestion (e.g. Finance team, Operations)"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":["derive from data, or empty array if not present"],"growth":"derive from data or '-'","topProduct":"Top performing item/category from data, or '-'"},"wallets":{"labels":[],"active":[],"dormant":[],"_instructions":"ONLY populate this with real figures if the data contains actual wallet/account activity. Otherwise leave all arrays empty — do NOT invent wallet numbers."},"transactions":{"labels":[],"success":[],"failed":[],"pending":[],"_instructions":"ONLY populate this with real figures if the data contains actual transaction success/failure records. Otherwise leave all arrays empty."},"compliance":{"labels":[],"highValue":[],"dormantFlags":[],"_instructions":"ONLY populate this with real figures if the data contains actual compliance/AML flags. Otherwise leave all arrays empty."}},"gapChecker":{"present":["Reports/categories clearly evidenced in the uploaded data"],"missing":["Standard business reports not present in this upload, relevant to ${currentRole} and to the actual business type shown in the data"],"warning":["Reports that appear incomplete or partial based on the data"]},"standardChecklist":[{"item":"Data completeness for this report type","status":"pass"},{"item":"Figures reconcile internally","status":"pass"},{"item":"Period-over-period comparison available","status":"warn"},{"item":"Supporting detail/breakdown present","status":"pass"}]}`;
   try{
@@ -1754,11 +1760,13 @@ function exportViaPrint(d, title) {
   const roleLabel = ROLE_LABELS[d?.role] || d?.role || 'Report';
   const date = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
+  const kpiCount = (d?.kpis||[]).length;
+  const kpiCols = kpiCount <= 4 ? kpiCount : (kpiCount === 5 ? 5 : 3); // keep rows even and readable
   const kpiCards = (d?.kpis||[]).map(k => `
-    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;min-width:120px;flex:1">
-      <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">${k.label}</div>
-      <div style="font-size:20px;font-weight:700;color:#0b1929;letter-spacing:-0.02em">${k.value}</div>
-      <div style="font-size:11px;font-weight:600;color:${k.positive?'#0DAF6A':'#E53E3E'};margin-top:4px">${k.positive?'▲':'▼'} ${k.delta}</div>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-height:96px">
+      <div style="font-size:9.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${k.label}</div>
+      <div style="font-size:17px;font-weight:700;color:#0b1929;letter-spacing:-0.01em;line-height:1.2;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${k.value}</div>
+      <div style="font-size:10.5px;font-weight:600;color:${k.positive?'#0DAF6A':'#E53E3E'};line-height:1.35;margin-top:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${k.positive?'▲':'▼'} ${k.delta}</div>
     </div>`).join('');
 
   const swotHtml = `
@@ -1848,7 +1856,7 @@ function exportViaPrint(d, title) {
 
       <!-- KPIs -->
       <div style="font-size:12px;font-weight:700;color:#0b1929;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1B6FE4">Key Performance Indicators</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">${kpiCards}</div>
+      <div style="display:grid;grid-template-columns:repeat(${kpiCols},1fr);gap:10px;margin-bottom:20px">${kpiCards}</div>
 
       <!-- SWOT -->
       <div style="font-size:12px;font-weight:700;color:#0b1929;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;padding-bottom:6px;border-bottom:2px solid #1B6FE4">SWOT Analysis</div>
