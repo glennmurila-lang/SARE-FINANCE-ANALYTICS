@@ -61,8 +61,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
 .sidebar-logo-text{font-size:13px;font-weight:700;color:#fff;letter-spacing:-0.02em}
 .sidebar-logo-sub{font-size:10px;color:rgba(255,255,255,0.4);margin-top:1px}
 .sidebar-nav{flex:1;padding:14px 10px;overflow-y:auto}
-.nav-section{margin-bottom:18px}
-.nav-section-label{font-size:10px;font-weight:700;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;padding:0 8px;margin-bottom:5px}
+.nav-section{margin-bottom:4px}
+.nav-section-label{font-size:10px;font-weight:700;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;padding:6px 8px;margin-bottom:0;cursor:pointer;display:flex;align-items:center;justify-content:space-between;border-radius:6px;transition:background 0.15s;user-select:none}
+.nav-section-label:hover{background:rgba(255,255,255,0.05)}
+.nav-section-label .nav-chevron{font-size:9px;color:rgba(255,255,255,0.25);transition:transform 0.2s;display:inline-block}
+.nav-section-label.collapsed .nav-chevron{transform:rotate(-90deg)}
+.nav-section-items{overflow:hidden;transition:max-height 0.25s ease,opacity 0.2s ease;max-height:300px;opacity:1;margin-bottom:8px}
+.nav-section-items.collapsed{max-height:0;opacity:0;margin-bottom:0}
 .nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;color:rgba(255,255,255,0.6);transition:all 0.15s;margin-bottom:1px;border:none;background:transparent;width:100%;text-align:left}
 .nav-item:hover{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.9)}
 .nav-item.active{background:rgba(27,111,228,0.25);color:#fff;box-shadow:inset 3px 0 0 var(--blue)}
@@ -552,31 +557,36 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gray-50);color:va
     </div>
     <div class="sidebar-nav">
       <div class="nav-section">
-        <div class="nav-section-label">Intelligence</div>
-        <button class="nav-item active" onclick="gotoView('upload')"><span class="nav-icon">📤</span>Upload & Analyse</button>
-        <button class="nav-item" onclick="gotoView('swot')"><span class="nav-icon">⊞</span>SWOT Analysis</button>
-        <button class="nav-item" onclick="gotoView('insights')"><span class="nav-icon">💡</span>Key Insights</button>
-        <button class="nav-item" onclick="gotoView('trends')"><span class="nav-icon">📈</span>Trends</button>
+        <div class="nav-section-label" onclick="toggleNavSection('intelligence')">Intelligence <span class="nav-chevron">▾</span></div>
+        <div class="nav-section-items" id="nav-sec-intelligence">
+          <button class="nav-item active" onclick="gotoView('upload')"><span class="nav-icon">📤</span>Upload & Analyse</button>
+          <button class="nav-item" onclick="gotoView('swot')"><span class="nav-icon">⊞</span>SWOT Analysis</button>
+          <button class="nav-item" onclick="gotoView('insights')"><span class="nav-icon">💡</span>Key Insights</button>
+          <button class="nav-item" onclick="gotoView('trends')"><span class="nav-icon">📈</span>Trends</button>
+          <button class="nav-item" onclick="gotoView('history')"><span class="nav-icon">📚</span>Report History</button>
+          <button class="nav-item" onclick="gotoView('chat')"><span class="nav-icon">💬</span>Chat with Reports</button>
+        </div>
       </div>
       <div class="nav-section">
-        <div class="nav-section-label">Reports</div>
-        <button class="nav-item" id="nav-builder" onclick="gotoView('builder')"><span class="nav-icon">🏗️</span>Report Builder</button>
-        <button class="nav-item" onclick="gotoView('gaps')"><span class="nav-icon">🔍</span>Gap Checker <span id="gap-badge" class="nav-badge" style="display:none">!</span></button>
+        <div class="nav-section-label" onclick="toggleNavSection('reports')">Reports <span class="nav-chevron">▾</span></div>
+        <div class="nav-section-items" id="nav-sec-reports">
+          <button class="nav-item" id="nav-builder" onclick="gotoView('builder')"><span class="nav-icon">🏗️</span>Report Builder</button>
+          <button class="nav-item" onclick="gotoView('gaps')"><span class="nav-icon">🔍</span>Gap Checker <span id="gap-badge" class="nav-badge" style="display:none">!</span></button>
+        </div>
       </div>
       <div class="nav-section">
-        <div class="nav-section-label">Intelligence</div>
-        <button class="nav-item" onclick="gotoView('history')"><span class="nav-icon">📚</span>Report History</button>
-        <button class="nav-item" onclick="gotoView('chat')"><span class="nav-icon">💬</span>Chat with Reports</button>
-      </div>
-      <div class="nav-section">
-        <div class="nav-section-label">Workflows</div>
-        <button class="nav-item" onclick="gotoView('schedules')"><span class="nav-icon">📅</span>Report Schedules</button>
-        <button class="nav-item" onclick="gotoView('myreports')"><span class="nav-icon">📤</span>My Reports <span id="pending-badge" class="nav-badge" style="display:none">!</span></button>
-        <button class="nav-item" onclick="gotoView('workflows')"><span class="nav-icon">🔄</span>Submissions</button>
+        <div class="nav-section-label" onclick="toggleNavSection('workflows')">Workflows <span class="nav-chevron">▾</span></div>
+        <div class="nav-section-items" id="nav-sec-workflows">
+          <button class="nav-item" onclick="gotoView('schedules')"><span class="nav-icon">📅</span>Report Schedules</button>
+          <button class="nav-item" onclick="gotoView('myreports')"><span class="nav-icon">📤</span>My Reports <span id="pending-badge" class="nav-badge" style="display:none">!</span></button>
+          <button class="nav-item" onclick="gotoView('workflows')"><span class="nav-icon">🔄</span>Submissions</button>
+        </div>
       </div>
       <div class="nav-section" id="admin-nav-section" style="display:none">
-        <div class="nav-section-label">Administration</div>
-        <button class="nav-item" onclick="gotoView('admin')"><span class="nav-icon">⚙️</span>Administration</button>
+        <div class="nav-section-label" onclick="toggleNavSection('admin')">Administration <span class="nav-chevron">▾</span></div>
+        <div class="nav-section-items" id="nav-sec-admin">
+          <button class="nav-item" onclick="gotoView('admin')"><span class="nav-icon">⚙️</span>Administration</button>
+        </div>
       </div>
     </div>
     <div class="sidebar-footer">
@@ -1288,6 +1298,7 @@ function showApp(){
   document.getElementById('sb-name').textContent=USER?.name||'User';
   document.getElementById('sb-role').textContent=(USER?.org||'')+(USER?.role?' · '+USER.role:'');
   if(USER?.role==='admin') document.getElementById('admin-nav-section').style.display='block';
+  initNavSections();
 
   // Role-gate Report Builder: only visible to executive-level roles
   const builderAllowedRoles = ['admin','cfo','ceo','executive','manager','department head','senior manager','board member'];
@@ -1313,6 +1324,7 @@ function gotoView(v){
     toast('🔒 Report Builder is available to executive-level roles only');
     v = 'dashboard';
   }
+  ensureNavSectionOpen(v);
   const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','chat','schedules','myreports','workflows'];
   ALL_VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
@@ -1389,21 +1401,91 @@ async function readFile(file){
     const reader=new FileReader();
     reader.onload=e=>{
       try{
-        const wb=XLSX.read(e.target.result,{type:'array'});
-        let text=`FILE: ${file.name}\n`;
-        wb.SheetNames.forEach(sn=>{
-          const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1});
-          text+=`SHEET: ${sn} (${rows.length} rows)\n`;
-          rows.forEach(r=>{text+=r.join('\t')+'\n';});
+        const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+
+        // ── Pre-compute facts per sheet so the AI gets numbers, not raw data ──
+        let factSheet = `FILE: ${file.name}\nPRE-COMPUTED FACTS (calculated from raw data — treat these as authoritative):\n\n`;
+        let rawData = `\nRAW DATA (for row-level queries only):\n`;
+
+        wb.SheetNames.forEach(sn => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:false, dateNF:'YYYY-MM-DD'});
+          const dataRows = rows.filter(r => r.some(c => c !== null && c !== undefined && c !== ''));
+          if (dataRows.length === 0) return;
+
+          const header = dataRows[0];
+          const body = dataRows.slice(1);
+
+          // Identify numeric columns
+          const numericCols = {};
+          header.forEach((h, ci) => {
+            if (!h) return;
+            const vals = body.map(r => {
+              const raw = r[ci];
+              if (raw === null || raw === undefined || raw === '') return null;
+              const n = parseFloat(String(raw).replace(/[KES,\s$]/gi,'').trim());
+              return isNaN(n) ? null : n;
+            }).filter(v => v !== null);
+            if (vals.length > 0 && vals.length >= body.length * 0.3) {
+              numericCols[ci] = { header: String(h), values: vals, sum: vals.reduce((a,b)=>a+b,0), count: vals.length, min: Math.min(...vals), max: Math.max(...vals) };
+            }
+          });
+
+          factSheet += `SHEET: ${sn} (${body.length} data rows)\n`;
+
+          // Column summaries
+          Object.values(numericCols).forEach(col => {
+            factSheet += `  ${col.header}: SUM=${col.sum.toLocaleString('en-KE',{maximumFractionDigits:0})}  COUNT=${col.count}  MIN=${col.min.toLocaleString()}  MAX=${col.max.toLocaleString()}\n`;
+          });
+
+          // Group-by summaries for key categorical columns
+          const catCols = header.map((h,i) => ({h:String(h||''),i})).filter(({h,i}) => {
+            if (!h || numericCols[i]) return false;
+            const vals = [...new Set(body.map(r=>String(r[i]||'')).filter(v=>v&&v!=='null'))];
+            return vals.length >= 2 && vals.length <= 40;
+          });
+
+          catCols.slice(0,4).forEach(({h:catH, i:catI}) => {
+            // Find the best numeric col to group by (highest sum)
+            const numEntries = Object.entries(numericCols);
+            if (numEntries.length === 0) return;
+            const [numCI, numCol] = numEntries.sort((a,b)=>b[1].sum-a[1].sum)[0];
+            const groups = {};
+            body.forEach(row => {
+              const cat = String(row[catI]||'').trim() || '(blank)';
+              const val = parseFloat(String(row[numCI]||'0').replace(/[KES,\s$]/gi,'').trim());
+              if (!isNaN(val) && val > 0) groups[cat] = (groups[cat]||0) + val;
+            });
+            const sorted = Object.entries(groups).sort((a,b)=>b[1]-a[1]);
+            if (sorted.length > 1) {
+              factSheet += `  Grouped by ${catH} (${numCol.header}):\n`;
+              sorted.slice(0,15).forEach(([k,v]) => {
+                factSheet += `    ${k}: ${v.toLocaleString('en-KE',{maximumFractionDigits:0})}\n`;
+              });
+            }
+          });
+
+          // Count of unique values in string cols
+          const dateColIdx = header.findIndex(h => /date|month|period/i.test(String(h||'')));
+          if (dateColIdx >= 0) {
+            const dates = [...new Set(body.map(r=>String(r[dateColIdx]||'')).filter(v=>v&&v!=='null'&&v!=='Un dated'))];
+            factSheet += `  Date range: ${dates.sort()[0]} to ${dates.sort().slice(-1)[0]} (${dates.length} distinct dates)\n`;
+          }
+
+          factSheet += `\n`;
+
+          // Raw data (compact, only used columns)
+          rawData += `\nSHEET: ${sn}\n`;
+          rawData += header.join('\t') + '\n';
+          body.slice(0, 200).forEach(r => { rawData += r.join('\t') + '\n'; });
         });
-        // Generous cap - only trims truly oversized files, logs if it happens
+
+        let text = factSheet + rawData;
         const MAX_CHARS = 40000;
         if (text.length > MAX_CHARS) {
-          console.warn(`File ${file.name} truncated from ${text.length} to ${MAX_CHARS} chars`);
-          text = text.slice(0, MAX_CHARS) + '\n[NOTE: file truncated - very large file, some rows omitted]';
+          text = text.slice(0, MAX_CHARS) + '\n[NOTE: raw data truncated due to file size — pre-computed facts above are complete]';
         }
         resolve(text);
-      }catch(err){console.error('Excel parse error:',err.message);resolve(`[File: ${file.name} - could not parse]`);}
+      }catch(err){console.error('Excel parse error:',err.message);resolve(`[File: ${file.name} - could not parse: ${err.message}]`);}
     };
     reader.readAsArrayBuffer(file);
   });
@@ -3473,6 +3555,49 @@ function detachChatReportAt(index) {
 }
 
 // ── Send messages ───────────────────────────────────────────────────────────────
+// ── Collapsible nav sections ─────────────────────────────────────────────────
+const NAV_SECTION_MAP = {
+  upload:'intelligence', swot:'intelligence', insights:'intelligence',
+  trends:'intelligence', history:'intelligence', chat:'intelligence',
+  builder:'reports', gaps:'reports',
+  schedules:'workflows', myreports:'workflows', workflows:'workflows',
+  admin:'admin', dashboard:'intelligence'
+};
+
+function toggleNavSection(id, forceOpen) {
+  const items = document.getElementById('nav-sec-' + id);
+  const label = items && items.previousElementSibling;
+  if (!items) return;
+  const isCollapsed = items.classList.contains('collapsed');
+  if (forceOpen === true || (forceOpen === undefined && isCollapsed)) {
+    items.classList.remove('collapsed');
+    if (label) label.classList.remove('collapsed');
+  } else if (forceOpen === false || !isCollapsed) {
+    items.classList.add('collapsed');
+    if (label) label.classList.add('collapsed');
+  }
+  // Persist state
+  try {
+    const state = JSON.parse(localStorage.getItem('sare_nav_state') || '{}');
+    state[id] = items.classList.contains('collapsed') ? 'closed' : 'open';
+    localStorage.setItem('sare_nav_state', JSON.stringify(state));
+  } catch(e) {}
+}
+
+function initNavSections() {
+  try {
+    const state = JSON.parse(localStorage.getItem('sare_nav_state') || '{}');
+    ['intelligence','reports','workflows','admin'].forEach(id => {
+      if (state[id] === 'closed') toggleNavSection(id, false);
+    });
+  } catch(e) {}
+}
+
+function ensureNavSectionOpen(view) {
+  const section = NAV_SECTION_MAP[view];
+  if (section) toggleNavSection(section, true);
+}
+
 function handleChatKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -3520,12 +3645,12 @@ async function sendChatMessage() {
 
     // Support multiple attached reports
     const threadReports = thread.reports || (thread.report ? [thread.report] : []);
-    const arithmeticRules = `\nCRITICAL ARITHMETIC RULES:\n` +
-      `1. Add EVERY individual row value from the raw data — never estimate, group, or approximate.\n` +
-      `2. Cross-check your sum against any control totals already in the data (e.g. Summary sheet). If they differ, flag it.\n` +
-      `3. Show full working: list all values you are adding, then the final sum.\n` +
-      `4. Never invent, round, or interpolate. Only use figures literally present in the data.\n` +
-      `5. Identify the exact column before summing it.`;
+    const arithmeticRules = `\nCRITICAL RULES FOR ACCURACY:\n` +
+      `1. The PRE-COMPUTED FACTS section contains authoritatively calculated totals — always use these numbers directly. Do NOT re-calculate from raw data.\n` +
+      `2. Never estimate, round creatively, or invent figures. Every number you state must come from the PRE-COMPUTED FACTS or a specific raw data row.\n` +
+      `3. If asked for a total that appears in PRE-COMPUTED FACTS, quote it exactly as shown.\n` +
+      `4. If asked for a figure not in PRE-COMPUTED FACTS, say which raw rows you are summing and show the arithmetic.\n` +
+      `5. Two people asking the same question about the same file must get the same number — consistency is mandatory.`;
     const reportContext = threadReports.length > 0
       ? threadReports.map((r, i) =>
           `\n\nATTACHED REPORT ${threadReports.length > 1 ? (i+1) + ' of ' + threadReports.length + ' — ' : ''}${r.filename}:\n${r.dataText}`
