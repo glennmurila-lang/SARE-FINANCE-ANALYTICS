@@ -2727,8 +2727,7 @@ Recommendations: ${(contextData.recommendations||[]).join('; ')}
 Generate the complete report now. Use markdown. Be specific with numbers from the data.`;
 
   try {
-    
-    const report = respData2 || '';
+    const report = await callAI(prompt, 2500);
     const styleLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
     displayQueryOutput(styleLabels[selectedReportStyle]||'Report', report, true);
   } catch(e) { toast('Report build failed: ' + e.message); }
