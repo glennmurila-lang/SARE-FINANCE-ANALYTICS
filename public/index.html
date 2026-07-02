@@ -616,6 +616,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
       <div><div class="page-title" id="page-title">Upload &amp; Analyse</div><div class="page-sub" id="page-sub">Upload your business reports for AI analysis</div></div>
       <div class="topbar-right">
         <button class="topbar-btn" onclick="exportAnalysis()" title="Export as PDF">⬇ <span>Export PDF</span></button>
+        <button class="topbar-btn" id="files-btn" style="display:none" onclick="showOriginalFiles()" title="Download the original file(s) you uploaded">📎 <span>Original file(s)</span></button>
         <button class="topbar-btn" id="recalc-btn" style="display:none" onclick="recalculateCurrentAnalysis()" title="Force a fresh recalculation (bypasses cache)">🔄 Recalculate</button>
         <button class="topbar-btn primary" id="new-btn" style="display:none" onclick="gotoView('upload')">+ New Analysis</button>
       </div>
@@ -1371,6 +1372,8 @@ function gotoView(v){
   document.getElementById('page-sub').textContent=m.sub;
   document.getElementById('new-btn').style.display=(v!=='upload'&&analysisResult)?'flex':'none';
   document.getElementById('recalc-btn').style.display=(v==='swot'&&analysisResult)?'flex':'none';
+  const filesBtn=document.getElementById('files-btn');
+  if(filesBtn) filesBtn.style.display=(v==='swot'&&currentHistoryAttachments&&currentHistoryAttachments.length)?'':'none';
   if(v==='trends'&&analysisResult&&!chartsBuilt)buildCharts();
   if(v==='admin'&&USER?.role==='admin'){loadUsers();}
   if(v==='dashboard')loadDashboard();
@@ -1393,6 +1396,19 @@ function handleFiles(fileList){
   }).join('');
 }
 function removeFile(i){uploadedFiles.splice(i,1);handleFiles(uploadedFiles);}
+
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const result=reader.result||'';
+      const commaIdx=result.indexOf(',');
+      resolve(commaIdx>=0?result.slice(commaIdx+1):result);
+    };
+    reader.onerror=()=>reject(new Error('Could not read file: '+file.name));
+    reader.readAsDataURL(file);
+  });
+}
 
 async function readFile(file){
   const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
@@ -1552,12 +1568,20 @@ ${dataText.slice(0,35000)}
 
 ANALYSIS DEPTH REQUIRED: Produce a thorough, specific, evidence-based analysis — not generic statements. Every insight and SWOT point must reference an actual number, trend, or fact from the data above. Avoid vague language like "could be better" — instead state the specific figure, the specific cause, and the specific magnitude of impact.
 
+CRITICAL — DO NOT ASSUME BUSINESS TYPE: Do not assume this is a wallet, fintech, or payments business unless the uploaded data itself contains wallet balances, transaction settlement, or e-money compliance figures. Base the summary, KPIs, SWOT, insights and recommendations ENTIRELY on what is actually present in the data above — if it is FMCG, retail, manufacturing, or any other business, describe it in those terms (revenue, COGS, margin, stock turnover, SKUs, channels, etc.) and do not invent wallet/settlement/dormant-account language that has no basis in the data.
+
 Respond ONLY with valid JSON, no markdown fences, no preamble:
-{"role":"${currentRole}","summary":"A detailed 3-4 sentence executive summary covering: the overall financial/operational position, the single most important finding, and what requires attention this period. Reference actual figures from the data.","kpis":[{"label":"Metric name","value":"Actual value from data","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 5","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 6","value":"value","delta":"+/-X%","positive":true}],"swot":{"strengths":["Specific strength with the exact figure or trend that proves it","Second specific strength with evidence","Third specific strength with evidence","Fourth specific strength with evidence"],"weaknesses":["Specific weakness with the exact figure that reveals it and why it matters","Second specific weakness with evidence and business impact","Third specific weakness with evidence"],"opportunities":["Specific opportunity quantified where possible (e.g. potential KES value or % improvement)","Second opportunity with rationale","Third opportunity with rationale"],"threats":["Specific threat with likelihood/magnitude and what triggers it","Second threat with context","Third threat with context"]},"insights":[{"title":"Specific, descriptive title naming the actual issue","body":"3-4 sentence deep-dive: state the finding with exact figures, explain WHY it is happening based on the data, explain the business IMPACT if unaddressed, and reference any related figures that support the conclusion.","type":"danger","badge":"Critical"},{"title":"Second specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"},{"title":"Third specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"success","badge":"Good"},{"title":"Fourth specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"info","badge":"Info"},{"title":"Fifth specific finding title if data supports it","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"}],"recommendations":["Specific, actionable recommendation with a timeframe and the expected outcome if implemented","Second recommendation with timeframe and rationale tied to a specific figure","Third recommendation with timeframe and expected outcome","Fourth recommendation with timeframe","Fifth recommendation with timeframe and owner suggestion (e.g. Finance team, Operations)"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Top performing item from data"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["Reports/categories clearly evidenced in the uploaded data"],"missing":["Standard business reports not present in this upload, relevant to ${currentRole}"],"warning":["Reports that appear incomplete or partial based on the data"]},"standardChecklist":[{"item":"Data completeness for this report type","status":"pass"},{"item":"Figures reconcile internally","status":"pass"},{"item":"Period-over-period comparison available","status":"warn"},{"item":"Supporting detail/breakdown present","status":"pass"}]}`;
+{"role":"${currentRole}","summary":"A detailed 3-4 sentence executive summary covering: the overall financial/operational position, the single most important finding, and what requires attention this period. Reference actual figures from the data. Use terminology that matches the actual business type shown in the data — do not default to wallet/fintech language.","kpis":[{"label":"Metric name","value":"Actual value from data","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 5","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 6","value":"value","delta":"+/-X%","positive":true}],"swot":{"strengths":["Specific strength with the exact figure or trend that proves it","Second specific strength with evidence","Third specific strength with evidence","Fourth specific strength with evidence"],"weaknesses":["Specific weakness with the exact figure that reveals it and why it matters","Second specific weakness with evidence and business impact","Third specific weakness with evidence"],"opportunities":["Specific opportunity quantified where possible (e.g. potential KES value or % improvement)","Second opportunity with rationale","Third opportunity with rationale"],"threats":["Specific threat with likelihood/magnitude and what triggers it","Second threat with context","Third threat with context"]},"insights":[{"title":"Specific, descriptive title naming the actual issue","body":"3-4 sentence deep-dive: state the finding with exact figures, explain WHY it is happening based on the data, explain the business IMPACT if unaddressed, and reference any related figures that support the conclusion.","type":"danger","badge":"Critical"},{"title":"Second specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"},{"title":"Third specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"success","badge":"Good"},{"title":"Fourth specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"info","badge":"Info"},{"title":"Fifth specific finding title if data supports it","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"}],"recommendations":["Specific, actionable recommendation with a timeframe and the expected outcome if implemented","Second recommendation with timeframe and rationale tied to a specific figure","Third recommendation with timeframe and expected outcome","Fourth recommendation with timeframe","Fifth recommendation with timeframe and owner suggestion (e.g. Finance team, Operations)"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":["derive from data, or empty array if not present"],"growth":"derive from data or '-'","topProduct":"Top performing item/category from data, or '-'"},"wallets":{"labels":[],"active":[],"dormant":[],"_instructions":"ONLY populate this with real figures if the data contains actual wallet/account activity. Otherwise leave all arrays empty — do NOT invent wallet numbers."},"transactions":{"labels":[],"success":[],"failed":[],"pending":[],"_instructions":"ONLY populate this with real figures if the data contains actual transaction success/failure records. Otherwise leave all arrays empty."},"compliance":{"labels":[],"highValue":[],"dormantFlags":[],"_instructions":"ONLY populate this with real figures if the data contains actual compliance/AML flags. Otherwise leave all arrays empty."}},"gapChecker":{"present":["Reports/categories clearly evidenced in the uploaded data"],"missing":["Standard business reports not present in this upload, relevant to ${currentRole} and to the actual business type shown in the data"],"warning":["Reports that appear incomplete or partial based on the data"]},"standardChecklist":[{"item":"Data completeness for this report type","status":"pass"},{"item":"Figures reconcile internally","status":"pass"},{"item":"Period-over-period comparison available","status":"warn"},{"item":"Supporting detail/breakdown present","status":"pass"}]}`;
   try{
     lastAnalysisPrompt = prompt;
     analysisResult = await callAIJson(prompt, 2500);
-  }catch{analysisResult=demoData(currentRole);}
+  }catch(e){
+    clearInterval(progressTimer);
+    document.getElementById('progress-wrap').style.display='none';
+    btn.disabled=false;btn.innerHTML='<span>✦</span> Generate Intelligence Report';
+    toast('❌ Analysis failed: '+(e.message||'Unknown error')+' — please try again');
+    return; // Do not display fabricated data — stop here on failure
+  }
   clearInterval(progressTimer);
   document.getElementById('progress-fill').style.width='100%';
   document.getElementById('progress-msg').textContent='Analysis complete ✓';
@@ -1852,7 +1876,6 @@ function exportAnalysis(){
 function toast(msg){const el=document.getElementById('toast');el.innerHTML=msg;el.style.display='flex';setTimeout(()=>{el.style.display='none';},3500);}
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
-function demoData(r){return{role:r,summary:'Wallet platform shows strong growth with KES 18.6M net revenue, up 15.2% MoM. Key risks include a widening settlement gap of KES 4.1M and dormant wallet growth of 18.4% requiring immediate regulatory attention.',kpis:[{label:'Total Revenue',value:'KES 18.6M',delta:'+12.3%',positive:true},{label:'Gross Margin',value:'39.8%',delta:'+2.1%',positive:true},{label:'Cost of Goods',value:'KES 11.2M',delta:'+8.2%',positive:false},{label:'Net Profit',value:'KES 3.3M',delta:'+15.2%',positive:true},{label:'Operating Expenses',value:'KES 4.1M',delta:'+18.4%',positive:false},{label:'Stock Turnover',value:'4.2x',delta:'+0.3x',positive:true}],swot:{strengths:['Revenue growing 12.3% MoM — ahead of industry 8% benchmark','Gross margin improved 2.1 points through better supplier negotiations','Top 3 SKUs contributing 68% of revenue with strong repeat purchase rates','Customer retention rate strong at 87% across active accounts'],weaknesses:['Operating expenses growing faster than revenue — 18.4% vs 12.3% revenue growth','Cost of goods increasing due to supply chain pressures — margin risk if unchecked','Stock turnover below optimal for 3 SKU categories — working capital tied up'],opportunities:['Tier-2 market expansion pipeline with 340 new distribution points identified','Private label product launch could add 8-12 points of margin on key categories','E-commerce channel showing 34% growth — underinvested relative to opportunity'],threats:['Competitor price pressure compressing margins in core product categories','Raw material cost inflation of 12% forecast for next quarter','Key customer concentration risk — top 3 accounts represent 41% of revenue']},insights:[{title:'Operating expenses outpacing revenue growth',body:'OpEx grew 18.4% against revenue growth of 12.3% — this margin compression will erode profitability if not addressed within 60 days. Review discretionary spend categories immediately.',type:'danger',badge:'Critical'},{title:'Supply chain cost pressure building',body:'Cost of goods is up 8.2% driven by raw material and logistics costs. Three supplier contracts are up for renewal next quarter — negotiation strategy needed now.',type:'warning',badge:'Watch'},{title:'Gross margin improving despite cost pressure',body:'Gross margin improved 2.1 points to 39.8% through better product mix and reduced discounting. The premium SKU range is the primary driver — expand distribution.',type:'success',badge:'Good'},{title:'E-commerce channel significantly outperforming',body:'Digital channel revenue grew 34% MoM and now represents 18% of total revenue — up from 13% last period. Consider accelerating investment in this channel.',type:'info',badge:'Info'}],recommendations:['Conduct immediate OpEx review — identify KES 800K in discretionary savings within 30 days to restore margin trajectory','Begin supplier renegotiations for Q4 contracts — target 5% reduction in COGS on top 3 categories','Accelerate e-commerce channel investment — allocate additional KES 500K marketing budget given 34% growth rate','Fast-track tier-2 distribution expansion — 340 new points represent KES 4.2M incremental revenue opportunity','Launch private label feasibility study for top 2 categories — potential 10 point margin uplift'],trends:{revenue:{labels:['Jan','Feb','Mar','Apr','May','Jun'],data:[12.1,14.5,13.2,17.8,16.5,18.6],growth:'8.3%',topProduct:'Mobile Transfers'},wallets:{labels:['Jan','Feb','Mar','Apr','May','Jun'],active:[4200,4500,4800,5100,5400,5900],dormant:[120,145,180,165,200,340]},transactions:{labels:['Jan','Feb','Mar','Apr','May','Jun'],success:[8200,9100,8700,10200,9800,11500],failed:[320,280,410,295,330,420],pending:[180,220,195,240,210,260]},compliance:{labels:['Jan','Feb','Mar','Apr','May','Jun'],highValue:[45,52,48,61,58,70],dormantFlags:[12,18,15,22,19,31]}},gapChecker:{present:['General Ledger Report','Trial Balance Report','Chart of Accounts','Wallet Liability Summary','Transaction Register','Revenue Summary Report','Commission Summary Report','Settlement Summary Report','Settlement Aging Report','High Value Transactions Report'],missing:['Float/Pooled Account Balance Report','Sanctions Screening Report','SAR Log','Customer Onboarding Report','API Error Report'],warning:['Dormant Account Compliance Report (incomplete)','Settlement Reconciliation (partial period)','Commission Reconciliation (missing Q1)']},standardChecklist:[{item:'All 12 WaaS categories covered',status:'warn'},{item:'GL reconciliation present',status:'pass'},{item:'Settlement aging attached',status:'pass'},{item:'Dormant compliance complete',status:'fail'},{item:'SAP batch report included',status:'fail'},{item:'Commission reconciliation attached',status:'warn'},{item:'Audit trail complete',status:'pass'}]};}
 
 
 // ── Admin sub-tabs ────────────────────────────────────────────────────────────
@@ -2197,10 +2220,66 @@ let currentQueryContext = null;
 let selectedReportStyle = 'financial';
 let queryConversation = [];
 let currentHistoryRecord = null;
+let currentHistoryAttachments = [];
+
+function updateFilesButton(){
+  const btn = document.getElementById('files-btn');
+  if (!btn) return;
+  btn.style.display = (currentHistoryAttachments && currentHistoryAttachments.length) ? '' : 'none';
+}
+
+function showOriginalFiles(){
+  if (!currentHistoryRecord || !currentHistoryAttachments.length) { toast('No original file saved with this analysis'); return; }
+  document.getElementById('modal-title').textContent = 'Original file(s)';
+  document.getElementById('modal-sub').textContent = 'The exact file(s) you uploaded for this analysis.';
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-footer').innerHTML = '';
+  document.getElementById('modal-body').innerHTML = currentHistoryAttachments.map(f => {
+    const sizeLabel = f.size ? ' · ' + (f.size/1024).toFixed(0) + ' KB' : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gray-100)">
+      <div style="display:flex;align-items:center;gap:10px;overflow:hidden"><span style="font-size:18px">📊</span><div style="font-size:13px;color:var(--gray-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.filename}${sizeLabel}</div></div>
+      <button class="tbl-btn" onclick="downloadHistoryFile('${currentHistoryRecord}',${f.index},'${(f.filename||'file').replace(/'/g,'')}')">⬇ Download</button>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function downloadHistoryFile(historyId, index, filename) {
+  try {
+    const resp = await fetch(API + '/api/history/' + historyId + '/download/' + index, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({error:'Download failed'}));
+      toast('Download error: ' + (err.error||'File not available'));
+      return;
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename || 'report';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Downloading ' + filename);
+  } catch(e) { toast('Download failed: ' + e.message); }
+}
 
 // ── Auto-save analysis to history ─────────────────────────────────────────────
 async function saveToHistory(result, filename) {
   try {
+    // Attach the original uploaded file(s) so they can be redownloaded later.
+    // Guarded by a combined size cap so we don't blow past the request body limit.
+    const MAX_ATTACH_BYTES = 30 * 1024 * 1024; // 30MB combined, comfortably under the 50MB JSON body limit after base64 overhead
+    let totalBytes = 0;
+    const files = [];
+    for (const f of uploadedFiles) {
+      if (totalBytes + f.size > MAX_ATTACH_BYTES) { console.warn('Skipping attachment (size cap reached):', f.name); continue; }
+      try {
+        const data = await fileToBase64(f);
+        files.push({ name: f.name, mime: f.type || 'application/octet-stream', data });
+        totalBytes += f.size;
+      } catch(e) { console.warn('Could not attach file to history:', f.name, e.message); }
+    }
     const record = await api('/api/history', 'POST', {
       perspective: result.role,
       filename: filename || 'Manual analysis',
@@ -2213,8 +2292,11 @@ async function saveToHistory(result, filename) {
       gapChecker: result.gapChecker,
       visibility: selectedVisibility || 'private',
       sharedWith: selectedSharedWith || [],
+      files,
     });
     currentHistoryRecord = record.id;
+    currentHistoryAttachments = files.map((f,i) => ({ index:i, filename:f.name, mime:f.mime }));
+    updateFilesButton();
     const visLabel = {private:'🔒 Private',department:'👥 Department',organisation:'🏢 Organisation',shared:'👤 Shared'}[selectedVisibility]||'🔒 Private';
     toast('📚 Saved as ' + visLabel);
     resetPrivacySelector();
@@ -2389,6 +2471,9 @@ async function viewHistoryRecord(id) {
   try {
     const record = await api('/api/history/' + id);
     analysisResult = record;
+    currentHistoryRecord = record.id;
+    currentHistoryAttachments = record.attachments || [];
+    updateFilesButton();
     populateAll(record);
     gotoView('swot');
     toast('Analysis loaded from history');
@@ -2574,7 +2659,7 @@ Opportunities: ${(contextData.swot?.opportunities||[]).join('; ')}
 Threats: ${(contextData.swot?.threats||[]).join('; ')}
 Insights: ${(contextData.insights||[]).map(i=>`${i.title}: ${i.body}`).join(' | ')}
 Recommendations: ${(contextData.recommendations||[]).join('; ')}
-` : 'No specific analysis context loaded — answer based on general Wallet as a Service financial intelligence.';
+` : 'No specific analysis context loaded — answer based on general business financial intelligence best practice. Do not assume this is a wallet, fintech, or payments business unless the user\'s question or uploaded data says so.';
 
   const conversationHistory = queryConversation.map(m => ({role:m.role, content:m.content}));
 
@@ -3925,7 +4010,7 @@ REPORT STYLE: ${styleLabels[style]}
 ${STYLE_PROMPTS[style]}
 
 IMPORTANT INSTRUCTIONS:
-- This is NOT a wallet/financial services business — it is an FMCG/general business
+- Do not assume this is a wallet, fintech, or payments business — determine the actual business type(s) from the department data itself, and describe each department in its own terms. A company may have multiple business lines (e.g. an FMCG arm and a separate wallet/fintech arm); only discuss wallet, transaction, or settlement metrics for a department whose data actually contains them.
 - Treat each department section as its own business unit
 - Identify cross-department synergies and conflicts
 - Flag where one department's performance affects another
