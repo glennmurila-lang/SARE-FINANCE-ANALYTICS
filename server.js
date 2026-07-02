@@ -730,15 +730,17 @@ app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
     let reportText = '';
     if (req.file) {
       if (req.file.originalname.endsWith('.csv')) {
-        reportText = req.file.buffer.toString('utf8').slice(0, 4000);
+        reportText = req.file.buffer.toString('utf8').slice(0, 35000);
       } else {
         const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
         wb.SheetNames.forEach(sn => {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 });
-          reportText += `SHEET: ${sn}\n`;
-          rows.slice(0, 100).forEach(r => { reportText += r.join('\t') + '\n'; });
+          reportText += `SHEET: ${sn} (${rows.length} rows)\n`;
+          rows.forEach(r => { reportText += r.join('\t') + '\n'; });
         });
-        reportText = reportText.slice(0, 4000);
+        if (reportText.length > 35000) {
+          reportText = reportText.slice(0, 35000) + '\n[NOTE: file truncated — very large file]';
+        }
       }
     }
     const submission = await submissionsDb.insert({
@@ -753,6 +755,36 @@ app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
     });
     const nextDue = calcNextDue(schedule.frequency, new Date(schedule.nextDue));
     await schedulesDb.update({ _id: scheduleId }, { $set: { nextDue, lastSubmitted: new Date() } });
+
+    // ── Auto-analysis: run in background immediately after submission ──────────
+    setImmediate(async () => {
+      try {
+        const cleanData = reportText.replace(/['"\\]/g, ' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g, ' ').replace(/\s+/g, ' ');
+        const role = schedule.perspective || 'cfo';
+        const prompt = `You are an elite business intelligence analyst. Analyse this ${req.user.department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.\n\nReport: ${schedule.title}\nSubmitted by: ${req.user.name}\nDepartment: ${req.user.department}\nData:\n${cleanData}\n\nCRITICAL ACCURACY RULES:\n1. Base every number strictly on the data provided above - never estimate or invent figures\n2. If you calculate a total, sum the exact raw figures shown - do not round creatively\n3. Be literal and consistent - the same data should always produce the same numbers\n4. If a figure cannot be determined from the data, say "Not available" rather than guessing\n\nANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact.\n\nReturn this exact JSON structure:\n{"role":"${role}","summary":"3-sentence summary of overall position, key finding, and what needs attention","kpis":[{"label":"Metric from data","value":"KES X","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with exact figure"],"weaknesses":["Specific weakness with exact figure and impact"],"opportunities":["Specific opportunity, quantified"],"threats":["Specific threat with magnitude"]},"insights":[{"title":"Specific finding","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second finding","body":"2-3 sentence deep-dive","type":"danger","badge":"Critical"},{"title":"Third finding","body":"2-3 sentence deep-dive","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
+        const cacheKey = hashPrompt(prompt + '|autoanalysis|' + role);
+        const callFn = async () => {
+          const message = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2000,
+            temperature: 0,
+            messages: [{ role: 'user', content: prompt }]
+          });
+          const text = (message.content || []).map(b => b.text || '').join('');
+          const result = parseAIJson(text);
+          if (!result.trends) result.trends = { revenue:{labels:[],data:[],growth:'-',topProduct:'-'}, wallets:{labels:[],active:[],dormant:[]}, transactions:{labels:[],success:[],failed:[],pending:[]}, compliance:{labels:[],highValue:[],dormantFlags:[]} };
+          if (!result.gapChecker) result.gapChecker = { present:[], missing:[], warning:[] };
+          if (!result.standardChecklist) result.standardChecklist = [];
+          return { result, success: true };
+        };
+        const analysis = await getCachedOrCall(cacheKey, callFn);
+        await submissionsDb.update({ _id: submission._id }, { $set: { autoAnalysis: analysis.result, autoAnalysedAt: new Date() } });
+        console.log('Auto-analysis complete for submission:', submission._id);
+      } catch(e) {
+        console.error('Auto-analysis failed for submission', submission._id, ':', e.message);
+        await submissionsDb.update({ _id: submission._id }, { $set: { autoAnalysis: null, autoAnalysisError: e.message } });
+      }
+    });
     const reviewerUsers = await db.find({ _id: { $in: schedule.reviewerIds||[] } });
     for (const reviewer of reviewerUsers) {
       await sendEmail(reviewer.email,
@@ -777,6 +809,29 @@ app.get('/api/submissions/:id', auth, async (req,res) => {
       if (!isReviewer && !isExec) return res.status(403).json({ error: 'You do not have permission to view this submission' });
     }
     res.json({ ...sub, id: sub._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Get auto-analysis for a submission ────────────────────────────────────────
+app.get('/api/submissions/:id/analysis', auth, async (req,res) => {
+  try {
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Not found' });
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = sub.submittedById === req.user.id;
+    if (!isAdmin && !isOwner) {
+      const schedule = await schedulesDb.findOne({ _id: sub.scheduleId });
+      const isReviewer = schedule && (schedule.reviewerIds||[]).includes(req.user.id);
+      const isExec = req.user.accessLevel === 'executive';
+      if (!isReviewer && !isExec) return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (sub.autoAnalysis) {
+      return res.json({ ready: true, analysis: sub.autoAnalysis, analysedAt: sub.autoAnalysedAt });
+    }
+    if (sub.autoAnalysisError) {
+      return res.json({ ready: false, error: sub.autoAnalysisError });
+    }
+    res.json({ ready: false, status: 'processing' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
