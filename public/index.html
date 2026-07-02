@@ -510,6 +510,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
         <div id="login-error" class="error-box" style="display:none"></div>
         <div class="form-group"><label class="form-label">Email address</label><input class="form-input" id="login-email" type="email" placeholder="your@email.com"></div>
         <div class="form-group"><label class="form-label">Password</label><input class="form-input" id="login-pass" type="password" placeholder="Your password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div style="text-align:right;margin:-8px 0 16px"><a onclick="showPanel('forgot-panel')" style="font-size:12px;color:var(--blue);cursor:pointer;font-weight:600">Forgot password?</a></div>
         <button class="btn-primary" id="login-btn" onclick="doLogin()">Sign in to SARE</button>
         <div class="auth-switch">New to SARE? <a onclick="showPanel('register-panel')">Create an account</a></div>
       </div>
@@ -536,6 +537,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
         <div class="form-group"><label class="form-label">New password (min 8 characters)</label><input class="form-input" id="cp-new" type="password" placeholder="New password"></div>
         <div class="form-group"><label class="form-label">Confirm new password</label><input class="form-input" id="cp-confirm" type="password" placeholder="Repeat new password"></div>
         <button class="btn-primary" id="cp-btn" onclick="doChangePassword()">Update password</button>
+        <div class="auth-switch"><a onclick="showPanel('login-panel')">← Back to sign in</a></div>
+      </div>
+
+      <div id="forgot-panel" style="display:none">
+        <div class="auth-title">Reset your password</div>
+        <div class="auth-subtitle">Enter your account email and we'll send you a new temporary password.</div>
+        <div id="forgot-error" class="error-box" style="display:none"></div>
+        <div id="forgot-success" class="success-box" style="display:none"></div>
+        <div class="form-group"><label class="form-label">Email address</label><input class="form-input" id="forgot-email" type="email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
+        <button class="btn-primary" id="forgot-btn" onclick="doForgotPassword()">Send reset instructions</button>
         <div class="auth-switch"><a onclick="showPanel('login-panel')">← Back to sign in</a></div>
       </div>
     </div>
@@ -1284,6 +1295,25 @@ async function doChangePassword(){
     document.getElementById('cp-current').value='';document.getElementById('cp-new').value='';document.getElementById('cp-confirm').value='';
   }catch(e){document.getElementById('cp-error').textContent=e.message;document.getElementById('cp-error').style.display='block';}
   btn.disabled=false;btn.textContent='Update password';
+}
+
+async function doForgotPassword(){
+  const email=document.getElementById('forgot-email').value.trim();
+  const btn=document.getElementById('forgot-btn');
+  document.getElementById('forgot-error').style.display='none';
+  document.getElementById('forgot-success').style.display='none';
+  if(!email){document.getElementById('forgot-error').textContent='Please enter your email address';document.getElementById('forgot-error').style.display='block';return;}
+  btn.disabled=true;btn.textContent='Sending…';
+  try{
+    const res=await api('/api/auth/forgot-password','POST',{email});
+    document.getElementById('forgot-success').textContent=res.message||"If that email address is registered, we've sent a new password to it.";
+    document.getElementById('forgot-success').style.display='block';
+    document.getElementById('forgot-email').value='';
+  }catch(e){
+    document.getElementById('forgot-error').textContent=e.message;
+    document.getElementById('forgot-error').style.display='block';
+  }
+  btn.disabled=false;btn.textContent='Send reset instructions';
 }
 
 function openChangePassword(){document.getElementById('app-screen').style.display='none';document.getElementById('auth-screen').style.display='flex';showPanel('change-pass-panel');}
