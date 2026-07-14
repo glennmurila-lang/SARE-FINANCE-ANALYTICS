@@ -1080,6 +1080,9 @@ async function runConnectedReport(conn) {
       if (base && base.includes('.')) filename = base;
     } catch {}
     const contentType = resp.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      throw new Error('The link returned a web page instead of the workbook file itself — this is common with OneDrive/SharePoint share links, which open a viewer page by default. Try adding "&download=1" to the end of the URL (or "?download=1" if it has no "?" already) to force a direct file download instead of the viewer.');
+    }
     if (contentType.includes('csv') && !filename.toLowerCase().endsWith('.csv')) filename = filename.replace(/\.[^.]+$/, '') + '.csv';
 
     const text = parseWorkbookBuffer(buffer, filename);
