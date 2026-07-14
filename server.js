@@ -1060,7 +1060,14 @@ app.delete('/api/connected-reports/:id', auth, async (req,res) => {
 async function runConnectedReport(conn) {
   const runDate = new Date().toISOString().slice(0,10);
   try {
-    const resp = await fetch(conn.url);
+    const resp = await fetch(conn.url, {
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept': '*/*'
+      }
+    });
+    if (resp.status === 403) throw new Error('Could not download the workbook (HTTP 403 — access denied). This usually means the link still requires sign-in, or "Publish to web" / public sharing was not fully enabled. Open the link in a private/incognito browser window with no Google account signed in — if it asks you to log in, the link is not public yet.');
     if (!resp.ok) throw new Error(`Could not download the workbook (HTTP ${resp.status}). Check the link is still public and direct-download.`);
     const arrayBuf = await resp.arrayBuffer();
     const buffer = Buffer.from(arrayBuf);
