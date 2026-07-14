@@ -31,6 +31,7 @@ const historyDb   = Datastore.create({ filename: path.join(__dirname, 'data', 'h
 const notesDb     = Datastore.create({ filename: path.join(__dirname, 'data', 'notes.db'),        autoload: true });
 const schedulesDb = Datastore.create({ filename: path.join(__dirname, 'data', 'schedules.db'),    autoload: true });
 const submissionsDb = Datastore.create({ filename: path.join(__dirname, 'data', 'submissions.db'),autoload: true });
+const connectedReportsDb = Datastore.create({ filename: path.join(__dirname, 'data', 'connected-reports.db'), autoload: true });
 
 // ── Helper: robust JSON parse with auto-repair ────────────────────────────────
 function parseAIJson(text) {
@@ -441,17 +442,28 @@ app.get('/api/dept/members', auth, async (req,res) => {
 
 // ── File parse ────────────────────────────────────────────────────────────────
 const upload = multer({ storage:multer.memoryStorage(), limits:{ fileSize:20*1024*1024 } });
+// ── Shared: parse an xlsx/xls/csv buffer into the same tab-delimited text format used everywhere else ──
+function parseWorkbookBuffer(buffer, filename) {
+  let text = `FILE: ${filename}\n`;
+  if (filename.toLowerCase().endsWith('.csv')) {
+    text += buffer.toString('utf8').slice(0, 8000);
+  } else {
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+    wb.SheetNames.forEach(sn => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 });
+      text += `SHEET: ${sn}\n`;
+      rows.slice(0, 120).forEach(r => { text += r.join('\t') + '\n'; });
+    });
+  }
+  return text.slice(0, 6000);
+}
+
 app.post('/api/parse', auth, upload.array('files',10), (req,res) => {
   try {
     const results = [];
     for (const file of (req.files||[])) {
-      let text = `FILE: ${file.originalname}\n`;
-      if (file.originalname.endsWith('.csv')) { text += file.buffer.toString('utf8').slice(0,8000); }
-      else {
-        const wb = XLSX.read(file.buffer,{ type:'buffer' });
-        wb.SheetNames.forEach(sn => { const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1}); text+=`SHEET: ${sn}\n`; rows.slice(0,120).forEach(r=>{ text+=r.join('\t')+'\n'; }); });
-      }
-      results.push({ name:file.originalname, size:file.size, text:text.slice(0,6000) });
+      const text = parseWorkbookBuffer(file.buffer, file.originalname);
+      results.push({ name:file.originalname, size:file.size, text });
     }
     res.json({ files:results });
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -497,15 +509,12 @@ app.post('/api/analyse', auth, async (req,res) => {
   }
 });
 
-// ── Dedicated submission analysis (Haiku model, robust parsing) ───────────────
-app.post('/api/analyse-submission', auth, async (req, res) => {
-  try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to Render environment variables.' });
-    }
-    const { title, submitter, department, role, data, skipCache } = req.body;
-
-    const prompt = `You are an elite business intelligence analyst. Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
+// ── Shared: analyse report text with the AI, used by manual submissions AND connected-workbook auto-runs ──
+async function analyseReportData({ title, submitter, department, role, data, skipCache }) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('AI service not configured. Add ANTHROPIC_API_KEY to Render environment variables.');
+  }
+  const prompt = `You are an elite business intelligence analyst. Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
 
 Report: ${title}
 Submitted by: ${submitter}
@@ -528,36 +537,43 @@ ANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that stat
 Return this exact JSON structure with real values based on the data:
 {"role":"${role}","summary":"A detailed 3-sentence summary of the overall position, the most important finding, and what needs attention","kpis":[{"label":"Metric name from data","value":"KES X or relevant unit","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with the exact figure that proves it","Second strength with evidence"],"weaknesses":["Specific weakness with the exact figure and why it matters","Second weakness with evidence and impact"],"opportunities":["Specific opportunity, quantified where possible","Second opportunity with rationale"],"threats":["Specific threat with magnitude/likelihood","Second threat with context"]},"insights":[{"title":"Specific finding title naming the actual issue","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"danger","badge":"Critical"},{"title":"Third specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe and expected outcome","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
 
-    const cacheKey = hashPrompt(prompt + '|submission|' + role);
+  const cacheKey = hashPrompt(prompt + '|submission|' + role);
 
-    const callFn = async () => {
-      const message = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
-        temperature: 0,
-        messages: [{ role: 'user', content: prompt }]
-      });
-      const text = (message.content || []).map(b => b.text || '').join('');
-      let result;
-      try {
-        result = parseAIJson(text);
-      } catch(parseErr) {
-        throw new Error('AI response could not be parsed: ' + parseErr.message);
-      }
-      if (!result.trends) {
-        result.trends = {
-          revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
-          wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
-          transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
-          compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
-        };
-      }
-      if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
-      if (!result.standardChecklist) result.standardChecklist = [];
-      return { result, success: true };
-    };
+  const callFn = async () => {
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const text = (message.content || []).map(b => b.text || '').join('');
+    let result;
+    try {
+      result = parseAIJson(text);
+    } catch(parseErr) {
+      throw new Error('AI response could not be parsed: ' + parseErr.message);
+    }
+    if (!result.trends) {
+      result.trends = {
+        revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
+        wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
+        transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
+        compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
+      };
+    }
+    if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
+    if (!result.standardChecklist) result.standardChecklist = [];
+    return { result, success: true };
+  };
 
-    const finalResult = skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
+  return skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
+}
+
+// ── Dedicated submission analysis (Haiku model, robust parsing) ───────────────
+app.post('/api/analyse-submission', auth, async (req, res) => {
+  try {
+    const { title, submitter, department, role, data, skipCache } = req.body;
+    const finalResult = await analyseReportData({ title, submitter, department, role, data, skipCache });
     res.json(finalResult);
   } catch(e) {
     console.error('analyse-submission error:', e.message);
@@ -975,6 +991,162 @@ async function checkDueReminders() {
 // Run once 30 seconds after server start (not immediately, to avoid restart-loop spam), then every 6 hours
 setTimeout(checkDueReminders, 30000);
 setInterval(checkDueReminders, 6*60*60*1000);
+
+// ── Connected Reports (auto-refreshed workbooks) ───────────────────────────────
+// A "connected report" is a public/direct-download URL to a workbook (Google Sheets
+// export link, OneDrive/SharePoint direct link, Dropbox raw link, etc). Every day at
+// the configured time, the server fetches the latest version, parses it, runs it
+// through the same AI analysis as a manual upload, and saves the result to History
+// so it can be viewed like any other report — no one needs to manually re-upload it.
+
+app.post('/api/connected-reports', auth, async (req,res) => {
+  try {
+    const { name, url, role, fetchTime, department } = req.body;
+    if (!name || !url) return res.status(400).json({ error: 'Name and URL are required' });
+    if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'URL must be a direct http(s) link to the workbook' });
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(fetchTime||'')) return res.status(400).json({ error: 'fetchTime must be in 24-hour HH:mm format, e.g. 07:00' });
+    const conn = await connectedReportsDb.insert({
+      userId: req.user.id, userName: req.user.name, org: req.user.org,
+      department: department || req.user.department,
+      name, url, role: role || 'cfo', fetchTime,
+      active: true, lastRunDate: null, lastRunAt: null, lastStatus: null, lastError: null, lastHistoryId: null,
+      createdAt: new Date()
+    });
+    res.json({ ...conn, id: conn._id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/connected-reports', auth, async (req,res) => {
+  try {
+    const isAdmin = req.user.role === 'admin';
+    const all = await connectedReportsDb.find({}).sort({ createdAt: -1 });
+    const visible = isAdmin ? all : all.filter(c => c.userId === req.user.id || c.department === req.user.department);
+    res.json(visible.map(c => ({ ...c, id: c._id })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/connected-reports/:id', auth, async (req,res) => {
+  try {
+    const conn = await connectedReportsDb.findOne({ _id: req.params.id });
+    if (!conn) return res.status(404).json({ error: 'Not found' });
+    if (conn.userId !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Not permitted' });
+    const { name, url, role, fetchTime, active } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (url !== undefined) update.url = url;
+    if (role !== undefined) update.role = role;
+    if (fetchTime !== undefined) {
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(fetchTime)) return res.status(400).json({ error: 'fetchTime must be in 24-hour HH:mm format' });
+      update.fetchTime = fetchTime;
+    }
+    if (active !== undefined) update.active = !!active;
+    await connectedReportsDb.update({ _id: req.params.id }, { $set: update });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/connected-reports/:id', auth, async (req,res) => {
+  try {
+    const conn = await connectedReportsDb.findOne({ _id: req.params.id });
+    if (!conn) return res.status(404).json({ error: 'Not found' });
+    if (conn.userId !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Not permitted' });
+    await connectedReportsDb.remove({ _id: req.params.id });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Fetches the workbook, parses it, runs AI analysis, and saves to History.
+// Shared by both the daily scheduler and the manual "Run now" button.
+async function runConnectedReport(conn) {
+  const runDate = new Date().toISOString().slice(0,10);
+  try {
+    const resp = await fetch(conn.url);
+    if (!resp.ok) throw new Error(`Could not download the workbook (HTTP ${resp.status}). Check the link is still public and direct-download.`);
+    const arrayBuf = await resp.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+
+    // Guess a filename/extension from the URL or Content-Type, defaulting to xlsx
+    let filename = 'workbook.xlsx';
+    try {
+      const urlPath = new URL(conn.url).pathname;
+      const base = urlPath.split('/').pop();
+      if (base && base.includes('.')) filename = base;
+    } catch {}
+    const contentType = resp.headers.get('content-type') || '';
+    if (contentType.includes('csv') && !filename.toLowerCase().endsWith('.csv')) filename = filename.replace(/\.[^.]+$/, '') + '.csv';
+
+    const text = parseWorkbookBuffer(buffer, filename);
+    const { result } = await analyseReportData({
+      title: conn.name, submitter: conn.userName + ' (auto-connected)', department: conn.department, role: conn.role, data: text, skipCache: true
+    });
+
+    const historyRecord = await historyDb.insert({
+      userId: conn.userId, userName: conn.userName, department: conn.department, org: conn.org,
+      role: result.role, perspective: conn.role, filename: conn.name + ' (auto-refresh ' + runDate + ')',
+      summary: result.summary, kpis: result.kpis, swot: result.swot, insights: result.insights,
+      recommendations: result.recommendations, trends: result.trends, gapChecker: result.gapChecker,
+      standardChecklist: result.standardChecklist, attachments: [],
+      visibility: 'department', sharedWith: [],
+      sourceType: 'connected', connectionId: conn._id,
+      createdAt: new Date()
+    });
+
+    await connectedReportsDb.update({ _id: conn._id }, { $set: {
+      lastRunDate: runDate, lastRunAt: new Date(), lastStatus: 'success', lastError: null, lastHistoryId: historyRecord._id
+    }});
+    return { success: true, historyId: historyRecord._id };
+  } catch(e) {
+    console.error('Connected report run failed:', conn.name, e.message);
+    await connectedReportsDb.update({ _id: conn._id }, { $set: {
+      lastRunDate: runDate, lastRunAt: new Date(), lastStatus: 'error', lastError: e.message
+    }});
+    return { success: false, error: e.message };
+  }
+}
+
+// Manual "Run now" — lets you test a connection or force a refresh without waiting for the scheduled time
+app.post('/api/connected-reports/:id/run-now', auth, async (req,res) => {
+  try {
+    const conn = await connectedReportsDb.findOne({ _id: req.params.id });
+    if (!conn) return res.status(404).json({ error: 'Not found' });
+    if (conn.userId !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Not permitted' });
+    const outcome = await runConnectedReport(conn);
+    if (!outcome.success) return res.status(500).json({ error: outcome.error });
+    res.json(outcome);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Past auto-generated runs for a given connection (so you can view the history of a specific workbook)
+app.get('/api/connected-reports/:id/runs', auth, async (req,res) => {
+  try {
+    const conn = await connectedReportsDb.findOne({ _id: req.params.id });
+    if (!conn) return res.status(404).json({ error: 'Not found' });
+    if (conn.userId !== req.user.id && req.user.role !== 'admin' && conn.department !== req.user.department) return res.status(403).json({ error: 'Not permitted' });
+    const runs = await historyDb.find({ connectionId: req.params.id }).sort({ createdAt: -1 });
+    res.json(runs.map(r => ({ id: r._id, filename: r.filename, createdAt: r.createdAt, summary: r.summary })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Checks every minute for connections whose fetchTime matches the current server time (HH:mm)
+// and that haven't already run today. NOTE: fetchTime is interpreted in the server's local
+// timezone (whatever Render/your host is set to — typically UTC) — factor that in when picking a time.
+async function checkConnectedReportsDue() {
+  try {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const currentHHmm = `${hh}:${mm}`;
+    const todayKey = now.toISOString().slice(0,10);
+    const due = await connectedReportsDb.find({ active: true, fetchTime: currentHHmm });
+    for (const conn of due) {
+      if (conn.lastRunDate === todayKey) continue; // already ran today, skip
+      // Mark immediately to avoid double-firing if this tick overlaps a slow run
+      await connectedReportsDb.update({ _id: conn._id }, { $set: { lastRunDate: todayKey } });
+      runConnectedReport(conn); // fire and forget — errors are captured inside runConnectedReport
+    }
+  } catch(e) { console.error('Connected reports scheduler error:', e.message); }
+}
+setInterval(checkConnectedReportsDue, 60*1000);
 
 app.get('/api/health', (req,res) => res.json({ status:'ok', version:'9.0.0', emailEnabled:!!resend, aiEnabled:!!process.env.ANTHROPIC_API_KEY, features:['history','scheduling','query','jsonrepair'] }));
 app.get('/{*path}', (req,res) => res.sendFile(path.join(__dirname,'public','index.html')));
