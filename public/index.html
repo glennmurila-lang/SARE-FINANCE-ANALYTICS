@@ -591,6 +591,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
           <button class="nav-item" onclick="gotoView('schedules')"><span class="nav-icon">📅</span>Report Schedules</button>
           <button class="nav-item" onclick="gotoView('myreports')"><span class="nav-icon">📤</span>My Reports <span id="pending-badge" class="nav-badge" style="display:none">!</span></button>
           <button class="nav-item" onclick="gotoView('workflows')"><span class="nav-icon">🔄</span>Submissions</button>
+          <button class="nav-item" onclick="gotoView('connected')"><span class="nav-icon">🔗</span>Connected Reports</button>
         </div>
       </div>
       <div class="nav-section" id="admin-nav-section" style="display:none">
@@ -1202,6 +1203,29 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
         <div id="workflows-list"></div>
       </div>
 
+      <div id="view-connected" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-title">🔗 Connect a report workbook</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">Paste a direct-download link to a workbook (a published Google Sheets export link, a OneDrive/SharePoint direct link, or a Dropbox raw link). Every day at the time you choose, SARE fetches the latest version and runs a fresh analysis automatically — no manual re-upload needed.</div>
+          <div id="connected-error" class="error-box" style="display:none"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="conn-name" placeholder="e.g. Monthly Sales Workbook"></div>
+            <div class="form-group"><label class="form-label">Audience / role</label>
+              <select class="form-select" id="conn-role">
+                <option value="cfo">CFO</option><option value="ceo">CEO</option><option value="manager">Manager</option><option value="board">Board</option><option value="auditor">Auditor</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">Direct workbook URL</label><input class="form-input" id="conn-url" placeholder="https://.../export?format=xlsx"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end">
+            <div class="form-group" style="margin-bottom:0"><label class="form-label">Daily fetch time (server time, 24h)</label><input class="form-input" id="conn-time" type="time" value="07:00"></div>
+            <button class="btn-primary" style="margin-bottom:0" onclick="addConnectedReport()">+ Add connection</button>
+          </div>
+        </div>
+        <div id="connected-empty" class="empty-state"><span class="empty-icon">🔗</span><div class="empty-title">No connected workbooks yet</div><div class="empty-state-body">Add one above to start getting daily auto-refreshed analysis.</div></div>
+        <div id="connected-list"></div>
+      </div>
+
       <!-- MODAL -->
       <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
         <div class="modal">
@@ -1236,7 +1260,8 @@ const PAGE_META={dashboard:{title:'Dashboard',sub:'Company-wide performance over
     query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'},
     schedules:{title:'Report Schedules',sub:'Create and manage recurring report requests'},
     myreports:{title:'My Reports',sub:'Reports assigned to you for submission'},
-    workflows:{title:'Submissions & Insights',sub:'View submitted reports and AI-generated insights'}};
+    workflows:{title:'Submissions & Insights',sub:'View submitted reports and AI-generated insights'},
+    connected:{title:'Connected Reports',sub:'Auto-refresh workbooks on a daily schedule'}};
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(endpoint, method='GET', body=null) {
@@ -1357,7 +1382,7 @@ function gotoView(v){
     v = 'dashboard';
   }
   ensureNavSectionOpen(v);
-  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','chat','schedules','myreports','workflows'];
+  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','builder','gaps','admin','history','query','chat','schedules','myreports','workflows','connected'];
   ALL_VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
     if(el) el.style.display=(id===v?'block':'none');
@@ -1365,7 +1390,7 @@ function gotoView(v){
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>{
     const t=el.textContent.toLowerCase();
-    const matches = (v==='dashboard'&&t.includes('dashboard'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='chat'&&t.includes('chat'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'));
+    const matches = (v==='dashboard'&&t.includes('dashboard'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='builder'&&t.includes('builder'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='chat'&&t.includes('chat'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'))||(v==='connected'&&t.includes('connected'));
     if(matches) el.classList.add('active');
   });
   const m=PAGE_META[v]||{title:v,sub:''};
@@ -1383,6 +1408,7 @@ function gotoView(v){
   if(v==='schedules')loadSchedules();
   if(v==='myreports')loadMyReports();
   if(v==='workflows')loadWorkflows();
+  if(v==='connected')loadConnectedReports();
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
@@ -3021,6 +3047,89 @@ async function submitReport(scheduleId, fileInput) {
     loadMyReports();
     loadWorkflows();
   } catch(e) { toast('Submit error: ' + e.message); }
+}
+
+// ── Connected Reports (auto-refreshed workbooks) ──────────────────────────────
+async function loadConnectedReports() {
+  try {
+    const list = await api('/api/connected-reports');
+    const container = document.getElementById('connected-list');
+    const empty = document.getElementById('connected-empty');
+    if (!list.length) { empty.style.display='block'; container.innerHTML=''; return; }
+    empty.style.display='none';
+    const roleLabelMap = {cfo:'CFO',ceo:'CEO',manager:'Manager',board:'Board',auditor:'Auditor'};
+    container.innerHTML = list.map(c => {
+      const statusBadge = c.lastStatus==='success' ? '<span class="checklist-item check-badge check-pass">✓ Last run OK</span>'
+        : c.lastStatus==='error' ? '<span class="checklist-item check-badge check-fail" title="'+(c.lastError||'').replace(/"/g,'')+'">✕ Last run failed</span>'
+        : '<span class="checklist-item check-badge check-warn">Not run yet</span>';
+      const lastRun = c.lastRunAt ? new Date(c.lastRunAt).toLocaleString('en-GB') : 'Never';
+      return `<div class="card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:14px">${c.name}</div>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${roleLabelMap[c.role]||c.role} · Daily at ${c.fetchTime} (server time) · ${statusBadge}</div>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:2px">Last run: ${lastRun}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="tbl-btn" onclick="runConnectedReportNow('${c.id}')">▶ Run now</button>
+            <button class="tbl-btn" onclick="viewConnectionRuns('${c.id}','${c.name.replace(/'/g,'')}')">📚 Past runs</button>
+            <button class="tbl-btn" onclick="deleteConnectedReportFn('${c.id}')" style="color:var(--red)">🗑 Remove</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { toast('Error loading connected reports: ' + e.message); }
+}
+
+async function addConnectedReport() {
+  const name = document.getElementById('conn-name').value.trim();
+  const url = document.getElementById('conn-url').value.trim();
+  const role = document.getElementById('conn-role').value;
+  const fetchTime = document.getElementById('conn-time').value;
+  const errEl = document.getElementById('connected-error');
+  errEl.style.display='none';
+  if (!name || !url || !fetchTime) { errEl.textContent='Name, URL and fetch time are required'; errEl.style.display='block'; return; }
+  try {
+    await api('/api/connected-reports', 'POST', { name, url, role, fetchTime });
+    document.getElementById('conn-name').value='';
+    document.getElementById('conn-url').value='';
+    toast('🔗 Connection added — first auto-run happens at ' + fetchTime + ' server time');
+    loadConnectedReports();
+  } catch(e) { errEl.textContent = e.message; errEl.style.display='block'; }
+}
+
+async function runConnectedReportNow(id) {
+  toast('Running now — this can take up to a minute…');
+  try {
+    const res = await api('/api/connected-reports/' + id + '/run-now', 'POST');
+    toast('✅ Run complete — saved to History');
+    loadConnectedReports();
+    if (res.historyId) viewHistoryRecord(res.historyId);
+  } catch(e) { toast('❌ Run failed: ' + e.message); loadConnectedReports(); }
+}
+
+async function deleteConnectedReportFn(id) {
+  if (!confirm('Remove this connection? Past auto-generated reports stay in History.')) return;
+  try { await api('/api/connected-reports/' + id, 'DELETE'); loadConnectedReports(); } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function viewConnectionRuns(id, name) {
+  try {
+    const runs = await api('/api/connected-reports/' + id + '/runs');
+    document.getElementById('modal-title').textContent = 'Past runs — ' + name;
+    document.getElementById('modal-sub').textContent = 'Click a run to view its full analysis.';
+    document.getElementById('modal-error').style.display='none';
+    document.getElementById('modal-footer').innerHTML='';
+    if (!runs.length) {
+      document.getElementById('modal-body').innerHTML = '<div style="font-size:12px;color:var(--gray-400)">No runs yet.</div>';
+    } else {
+      document.getElementById('modal-body').innerHTML = runs.map(r => `<div style="padding:10px 0;border-bottom:1px solid var(--gray-100);cursor:pointer" onclick="closeModal();viewHistoryRecord('${r.id}')">
+        <div style="font-size:13px;font-weight:600">${r.filename}</div>
+        <div style="font-size:11px;color:var(--gray-400)">${new Date(r.createdAt).toLocaleString('en-GB')}</div>
+      </div>`).join('');
+    }
+    document.getElementById('modal-overlay').style.display='flex';
+  } catch(e) { toast('Error: ' + e.message); }
 }
 
 async function loadWorkflows() {
