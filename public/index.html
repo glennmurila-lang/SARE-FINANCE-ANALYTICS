@@ -559,6 +559,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
       </div>
     </div>
     <div class="sidebar-nav">
+      <button class="nav-item" onclick="gotoView('dashboard')" style="font-weight:700;margin-bottom:6px"><span class="nav-icon">🏠</span>Home</button>
       <div class="nav-section">
         <div class="nav-section-label" onclick="toggleNavSection('intelligence')">Intelligence <span class="nav-chevron">▾</span></div>
         <div class="nav-section-items" id="nav-sec-intelligence">
@@ -568,12 +569,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
           <button class="nav-item" onclick="gotoView('trends')"><span class="nav-icon">📈</span>Trends</button>
           <button class="nav-item" onclick="gotoView('history')"><span class="nav-icon">📚</span>Report History</button>
           <button class="nav-item" onclick="gotoView('chat')"><span class="nav-icon">💬</span>Chat with Reports</button>
-        </div>
-      </div>
-      <div class="nav-section">
-        <div class="nav-section-label" onclick="toggleNavSection('reports')">Reports <span class="nav-chevron">▾</span></div>
-        <div class="nav-section-items" id="nav-sec-reports">
-          <button class="nav-item" onclick="gotoView('gaps')"><span class="nav-icon">🔍</span>Gap Checker <span id="gap-badge" class="nav-badge" style="display:none">!</span></button>
         </div>
       </div>
       <div class="nav-section">
@@ -720,16 +715,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
 
       <div id="view-upload">
         <div class="card">
-          <div class="card-title">🎯 Select executive audience</div>
-          <div class="role-grid">
-            <div class="role-card active" onclick="selectRole(this,'cfo')"><div class="role-emoji">💰</div><div class="role-name">CFO</div><div class="role-desc">Financials · Risk · P&L</div></div>
-            <div class="role-card" onclick="selectRole(this,'ceo')"><div class="role-emoji">📈</div><div class="role-name">CEO</div><div class="role-desc">Growth · Strategy</div></div>
-            <div class="role-card" onclick="selectRole(this,'manager')"><div class="role-emoji">⚙️</div><div class="role-name">Manager</div><div class="role-desc">Operations · KPIs · Targets</div></div>
-            <div class="role-card" onclick="selectRole(this,'board')"><div class="role-emoji">🏛️</div><div class="role-name">Board</div><div class="role-desc">Governance · Risk</div></div>
-            <div class="role-card" onclick="selectRole(this,'auditor')"><div class="role-emoji">🔍</div><div class="role-name">Auditor</div><div class="role-desc">Compliance · Trails</div></div>
-          </div>
-        </div>
-        <div class="card">
           <div class="card-title">📂 Upload reports</div>
           <div id="file-chips"></div>
           <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
@@ -786,6 +771,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
           <div class="metrics-grid" id="kpi-grid"></div>
           <div class="swot-grid" id="swot-grid"></div>
           <div class="rec-card"><div class="rec-title">Strategic recommendations</div><div id="rec-list"></div></div>
+          <div class="card" id="checklist-card" style="display:none">
+            <div class="card-title">📋 Standardisation checklist</div>
+            <div id="checklist-body"></div>
+          </div>
 
           <!-- ── Inline Analysis Chat ──────────────────────────────────────── -->
           <div id="swot-inline-panel" style="margin-top:20px;border-radius:var(--radius);overflow:hidden;border:1px solid rgba(0,72,128,0.12);box-shadow:var(--shadow-md)">
@@ -950,23 +939,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
 
 
 
-      <div id="view-gaps" style="display:none">
-        <div id="gaps-empty" class="empty-state"><span class="empty-icon">🔍</span><div class="empty-title">No gap analysis yet</div><div class="empty-state-body">Run an analysis to check your 42 standard WaaS reports.</div></div>
-        <div id="gaps-content" style="display:none">
-          <div class="gap-stat-row" id="gap-stats"></div>
-          <div class="grid-2">
-            <div class="card"><div class="card-title" style="color:var(--green)">✅ Present</div><div id="gaps-present"></div></div>
-            <div>
-              <div class="card" style="margin-bottom:14px"><div class="card-title" style="color:var(--amber)">⚠️ Incomplete</div><div id="gaps-warn"></div></div>
-              <div class="card"><div class="card-title" style="color:var(--red)">❌ Missing</div><div id="gaps-missing"></div></div>
-            </div>
-          </div>
-          <div class="card" id="checklist-card" style="display:none;margin-top:14px">
-            <div class="card-title">📋 Standardisation checklist</div>
-            <div id="checklist-body"></div>
-          </div>
-        </div>
-      </div>
+
 
       <div id="view-admin" style="display:none">
 
@@ -1315,8 +1288,8 @@ let currentRole='cfo', uploadedFiles=[], analysisResult=null, charts={}, chartsB
 
 const API = window.location.origin;
 const ROLE_LABELS={cfo:'CFO Level · Liquidity & Risk',ceo:'CEO Level · Growth & Strategy',manager:'Manager Level · Operational KPIs',board:'Board Pack · Governance & Risk',auditor:'Auditor Level · Compliance & Controls'};
-const PAGE_META={dashboard:{title:'Dashboard',sub:'Company-wide performance overview · Make It Make Cents'},
-    upload:{title:'Upload & Analyse',sub:'Upload your business reports for AI analysis'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},gaps:{title:'Gap Checker',sub:'Detect missing reports across all key business categories'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
+const PAGE_META={dashboard:{title:'Home',sub:'Company-wide performance overview · Make It Make Cents'},
+    upload:{title:'Upload & Analyse',sub:'Upload your business reports for AI analysis'},swot:{title:'SWOT Analysis',sub:'Strengths · Weaknesses · Opportunities · Threats'},insights:{title:'Key Insights',sub:'AI-generated intelligence · Role-filtered'},trends:{title:'Trend Analysis',sub:'Revenue · Wallets · Transactions · Compliance'},admin:{title:'Administration',sub:'Users · Departments · Roles · Access control'},
     history:{title:'Report History',sub:'Track, compare and evolve your analysis over time'},
     chat:{title:'Chat with Reports',sub:'Upload once, ask anything — the conversation remembers your data'},
     query:{title:'AI Query Engine',sub:'Challenge insights · Build structured reports · Visualize data'},
@@ -1412,6 +1385,15 @@ function showApp(){
   if(USER?.role==='admin') document.getElementById('admin-nav-section').style.display='block';
   initNavSections();
 
+  // Infer the analysis perspective from the user's own role — no need to ask them to pick
+  // an "audience", since the reviewer/manager already sets this when creating a schedule.
+  const roleTextForInference = ((USER?.role||'')+' '+(USER?.accessLevel||'')).toLowerCase();
+  if (roleTextForInference.includes('audit')) currentRole = 'auditor';
+  else if (roleTextForInference.includes('board')) currentRole = 'board';
+  else if (roleTextForInference.includes('ceo') || roleTextForInference.includes('executive')) currentRole = 'ceo';
+  else if (roleTextForInference.includes('cfo')) currentRole = 'cfo';
+  else currentRole = 'manager';
+
   // Role-gate manager-level features (e.g. Assignee KPIs): manager/senior/exec/admin only
   const managerAllowedRoles = ['admin','cfo','ceo','executive','manager','department head','senior manager','board member'];
   const userRoleLower = (USER?.role||'').toLowerCase();
@@ -1450,7 +1432,7 @@ function gotoView(v){
     v = 'dashboard';
   }
   ensureNavSectionOpen(v);
-  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','gaps','admin','history','query','chat','schedules','myreports','workflows','kpis','mykpis'];
+  const ALL_VIEWS=['dashboard','upload','swot','insights','trends','admin','history','query','chat','schedules','myreports','workflows','kpis','mykpis'];
   ALL_VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
     if(el) el.style.display=(id===v?'block':'none');
@@ -1458,7 +1440,7 @@ function gotoView(v){
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>{
     const t=el.textContent.toLowerCase();
-    const matches = (v==='dashboard'&&t.includes('dashboard'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='gaps'&&t.includes('gap'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='chat'&&t.includes('chat'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'))||(v==='kpis'&&t.includes('assignee kpi'))||(v==='mykpis'&&t.includes('my ratings'));
+    const matches = (v==='dashboard'&&t.includes('home'))||(v==='upload'&&t.includes('upload'))||(v==='swot'&&t.includes('swot'))||(v==='insights'&&t.includes('insight'))||(v==='trends'&&t.includes('trend'))||(v==='admin'&&t.includes('administration'))||(v==='history'&&t.includes('history'))||(v==='query'&&t.includes('query'))||(v==='chat'&&t.includes('chat'))||(v==='schedules'&&t.includes('schedule'))||(v==='myreports'&&t.includes('my report'))||(v==='workflows'&&t.includes('submission'))||(v==='kpis'&&t.includes('assignee kpi'))||(v==='mykpis'&&t.includes('my ratings'));
     if(matches) el.classList.add('active');
   });
   const m=PAGE_META[v]||{title:v,sub:''};
@@ -1618,7 +1600,7 @@ async function readFile(file){
   });
 }
 
-function selectRole(el,role){document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('active'));el.classList.add('active');currentRole=role;}
+
 
 // ── Analysis ──────────────────────────────────────────────────────────────────
 const ROLE_FOCUS={
@@ -1650,7 +1632,7 @@ ${dataText.slice(0,35000)}
 ANALYSIS DEPTH REQUIRED: Produce a thorough, specific, evidence-based analysis — not generic statements. Every insight and SWOT point must reference an actual number, trend, or fact from the data above. Avoid vague language like "could be better" — instead state the specific figure, the specific cause, and the specific magnitude of impact.
 
 Respond ONLY with valid JSON, no markdown fences, no preamble:
-{"role":"${currentRole}","summary":"A detailed 3-4 sentence executive summary covering: the overall financial/operational position, the single most important finding, and what requires attention this period. Reference actual figures from the data.","kpis":[{"label":"Metric name","value":"Actual value from data","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 5","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 6","value":"value","delta":"+/-X%","positive":true}],"swot":{"strengths":["Specific strength with the exact figure or trend that proves it","Second specific strength with evidence","Third specific strength with evidence","Fourth specific strength with evidence"],"weaknesses":["Specific weakness with the exact figure that reveals it and why it matters","Second specific weakness with evidence and business impact","Third specific weakness with evidence"],"opportunities":["Specific opportunity quantified where possible (e.g. potential KES value or % improvement)","Second opportunity with rationale","Third opportunity with rationale"],"threats":["Specific threat with likelihood/magnitude and what triggers it","Second threat with context","Third threat with context"]},"insights":[{"title":"Specific, descriptive title naming the actual issue","body":"3-4 sentence deep-dive: state the finding with exact figures, explain WHY it is happening based on the data, explain the business IMPACT if unaddressed, and reference any related figures that support the conclusion.","type":"danger","badge":"Critical"},{"title":"Second specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"},{"title":"Third specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"success","badge":"Good"},{"title":"Fourth specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"info","badge":"Info"},{"title":"Fifth specific finding title if data supports it","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"}],"recommendations":["Specific, actionable recommendation with a timeframe and the expected outcome if implemented","Second recommendation with timeframe and rationale tied to a specific figure","Third recommendation with timeframe and expected outcome","Fourth recommendation with timeframe","Fifth recommendation with timeframe and owner suggestion (e.g. Finance team, Operations)"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Top performing item from data"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"gapChecker":{"present":["Reports/categories clearly evidenced in the uploaded data"],"missing":["Standard business reports not present in this upload, relevant to ${currentRole}"],"warning":["Reports that appear incomplete or partial based on the data"]},"standardChecklist":[{"item":"Data completeness for this report type","status":"pass"},{"item":"Figures reconcile internally","status":"pass"},{"item":"Period-over-period comparison available","status":"warn"},{"item":"Supporting detail/breakdown present","status":"pass"}]}`;
+{"role":"${currentRole}","summary":"A detailed 3-4 sentence executive summary covering: the overall financial/operational position, the single most important finding, and what requires attention this period. Reference actual figures from the data.","kpis":[{"label":"Metric name","value":"Actual value from data","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 5","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 6","value":"value","delta":"+/-X%","positive":true}],"swot":{"strengths":["Specific strength with the exact figure or trend that proves it","Second specific strength with evidence","Third specific strength with evidence","Fourth specific strength with evidence"],"weaknesses":["Specific weakness with the exact figure that reveals it and why it matters","Second specific weakness with evidence and business impact","Third specific weakness with evidence"],"opportunities":["Specific opportunity quantified where possible (e.g. potential KES value or % improvement)","Second opportunity with rationale","Third opportunity with rationale"],"threats":["Specific threat with likelihood/magnitude and what triggers it","Second threat with context","Third threat with context"]},"insights":[{"title":"Specific, descriptive title naming the actual issue","body":"3-4 sentence deep-dive: state the finding with exact figures, explain WHY it is happening based on the data, explain the business IMPACT if unaddressed, and reference any related figures that support the conclusion.","type":"danger","badge":"Critical"},{"title":"Second specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"},{"title":"Third specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"success","badge":"Good"},{"title":"Fourth specific finding title","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"info","badge":"Info"},{"title":"Fifth specific finding title if data supports it","body":"3-4 sentence deep-dive with figures, cause, impact, and supporting detail.","type":"warning","badge":"Watch"}],"recommendations":["Specific, actionable recommendation with a timeframe and the expected outcome if implemented","Second recommendation with timeframe and rationale tied to a specific figure","Third recommendation with timeframe and expected outcome","Fourth recommendation with timeframe","Fifth recommendation with timeframe and owner suggestion (e.g. Finance team, Operations)"],"trends":{"revenue":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"data":[12.1,14.5,13.2,17.8,16.5,18.6],"growth":"8.3%","topProduct":"Top performing item from data"},"wallets":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"active":[4200,4500,4800,5100,5400,5900],"dormant":[120,145,180,165,200,340]},"transactions":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"success":[8200,9100,8700,10200,9800,11500],"failed":[320,280,410,295,330,420],"pending":[180,220,195,240,210,260]},"compliance":{"labels":["Jan","Feb","Mar","Apr","May","Jun"],"highValue":[45,52,48,61,58,70],"dormantFlags":[12,18,15,22,19,31]}},"standardChecklist":[{"item":"Data completeness for this report type","status":"pass"},{"item":"Figures reconcile internally","status":"pass"},{"item":"Period-over-period comparison available","status":"warn"},{"item":"Supporting detail/breakdown present","status":"pass"}]}`;
   try{
     lastAnalysisPrompt = prompt;
     analysisResult = await callAIJson(prompt, 2500);
@@ -1658,7 +1640,7 @@ Respond ONLY with valid JSON, no markdown fences, no preamble:
   clearInterval(progressTimer);
   document.getElementById('progress-fill').style.width='100%';
   document.getElementById('progress-msg').textContent='Analysis complete ✓';
-  setTimeout(()=>{document.getElementById('progress-wrap').style.display='none';btn.disabled=false;btn.innerHTML='<span>✦</span> Generate Intelligence Report';populateAll(analysisResult);gotoView('swot');document.getElementById('gap-badge').style.display='flex';toast('✦ Intelligence report generated for '+currentRole.toUpperCase());
+  setTimeout(()=>{document.getElementById('progress-wrap').style.display='none';btn.disabled=false;btn.innerHTML='<span>✦</span> Generate Intelligence Report';populateAll(analysisResult);gotoView('swot');toast('✦ Intelligence report generated for '+currentRole.toUpperCase());
       const fname = uploadedFiles.length>0?uploadedFiles.map(f=>f.name).join(', '):'Manual analysis';
       saveToHistory(analysisResult, fname);},600);
 }
@@ -1680,7 +1662,7 @@ async function recalculateCurrentAnalysis(){
 }
 
 // ── Populate ──────────────────────────────────────────────────────────────────
-function populateAll(d){populateSWOT(d);populateInsights(d);populateGaps(d);populateChecklist(d);}
+function populateAll(d){populateSWOT(d);populateInsights(d);populateChecklist(d);}
 
 function populateSWOT(d){
   document.getElementById('swot-empty').style.display='none';document.getElementById('swot-content').style.display='block';
@@ -1708,15 +1690,6 @@ function populateInsights(d){
   document.getElementById('insights-list').innerHTML=(d.insights||[]).map(ins=>`<div class="insight-card ${ins.type}"><div class="insight-icon">${icons[ins.type]||'ℹ️'}</div><div><div class="insight-title">${ins.title}<span class="badge ${bc[ins.badge]||'badge-info'}">${ins.badge}</span></div><div class="insight-body">${ins.body}</div></div></div>`).join('');
 }
 
-function populateGaps(d){
-  const g=d.gapChecker||{present:[],missing:[],warning:[]};
-  document.getElementById('gaps-empty').style.display='none';document.getElementById('gaps-content').style.display='block';
-  document.getElementById('gap-stats').innerHTML=`<div class="gap-stat ok"><div class="gap-stat-num">${g.present.length}</div><div class="gap-stat-label">Present</div></div><div class="gap-stat warn"><div class="gap-stat-num">${g.warning.length}</div><div class="gap-stat-label">Incomplete</div></div><div class="gap-stat bad"><div class="gap-stat-num">${g.missing.length}</div><div class="gap-stat-label">Missing</div></div>`;
-  const mk=(items,color)=>items.map(i=>`<div class="gap-item"><span class="gap-dot" style="background:${color}"></span>${i}</div>`).join('');
-  document.getElementById('gaps-present').innerHTML=mk(g.present,'var(--green)');
-  document.getElementById('gaps-warn').innerHTML=mk(g.warning,'var(--amber)');
-  document.getElementById('gaps-missing').innerHTML=mk(g.missing,'var(--red)');
-}
 
 function populateChecklist(d){
   if(!d.standardChecklist)return;
@@ -1920,7 +1893,7 @@ async function sendSwotChat() {
     const analysisCtx = 'You are SARE Analytics AI. The user is viewing an analysis with the following data:\n\nSUMMARY: '+d.summary+'\n\nKPIs: '+(d.kpis||[]).map(k=>k.label+': '+k.value+' ('+k.delta+')').join(', ')+'\n\nSTRENGTHS:\n'+(d.swot?.strengths||[]).map(s=>'• '+s).join('\n')+'\n\nWEAKNESSES:\n'+(d.swot?.weaknesses||[]).map(s=>'• '+s).join('\n')+'\n\nOPPORTUNITIES:\n'+(d.swot?.opportunities||[]).map(s=>'• '+s).join('\n')+'\n\nTHREATS:\n'+(d.swot?.threats||[]).map(s=>'• '+s).join('\n')+'\n\nKEY INSIGHTS:\n'+(d.insights||[]).map(i=>i.title+': '+i.body).join('\n')+'\n\nRECOMMENDATIONS:\n'+(d.recommendations||[]).map((r,i)=>(i+1)+'. '+r).join('\n');
     const fileCtx = swotChatFiles.length > 0 ? '\n\n---\nATTACHED FILES:\n' + swotChatFiles.map((f,i) => 'FILE '+(i+1)+' — '+f.filename+':\n'+f.dataText).join('\n\n') : '';
     const arithmeticRules = swotChatFiles.length > 0 ? '\n\nCRITICAL: When the user asks about figures from attached files, sum every row literally from the raw data — never estimate. Cross-check against any summary totals in the files.' : '';
-    const context = analysisCtx + fileCtx + arithmeticRules + '\n\nAnswer questions directly from the data above. Be precise, reference specific figures. Use markdown formatting where helpful.';
+    const context = analysisCtx + fileCtx + arithmeticRules + '\n\nAnswer questions directly from the data above. Be precise, reference specific figures. FORMATTING: use markdown headers (##) for distinct sections, bullet points for lists, and markdown tables when comparing multiple figures side by side. Bold the key numbers and conclusions. Avoid a single dense paragraph for substantial questions — structure it like a short professional brief.';
     const history = swotChatHistory.slice(0,-1).slice(-10).map(m=>(m.role==='user'?'User: ':'Assistant: ')+m.content).join('\n');
     const prompt = context + '\n\nConversation:\n' + history + '\nUser: ' + question + '\nAssistant:';
     const answer = await callAI(prompt, 1000, true);
@@ -3152,7 +3125,7 @@ async function loadMyReports() {
     document.getElementById('myreports-list').innerHTML = `
       <div class="card" style="background:#FFFBEB;border-color:#FDE68A;margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:4px">You have ${pending.length} report${pending.length!==1?'s':''} to submit</div>
-        <div style="font-size:12px;color:#92400E">Upload your Excel or CSV file for each report below. SARE AI will automatically generate insights for your managers.</div>
+        <div style="font-size:12px;color:#92400E">Upload your Excel or CSV file for each report below. Your reviewer will be notified once it's submitted.</div>
       </div>
       ${pending.map(s => {
         const due = new Date(s.nextDue);
@@ -3190,7 +3163,7 @@ async function submitReport(scheduleId, fileInput) {
   formData.append('scheduleId', scheduleId);
   formData.append('notes', notes);
   try {
-    toast('Uploading and analysing report...');
+    toast('Uploading report...');
     const headers = {};
     if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
     const resp = await fetch(API + '/api/submissions', { method:'POST', headers, body: formData });
@@ -4189,9 +4162,9 @@ function detachChatReportAt(index) {
 const NAV_SECTION_MAP = {
   upload:'intelligence', swot:'intelligence', insights:'intelligence',
   trends:'intelligence', history:'intelligence', chat:'intelligence',
-  builder:'reports', gaps:'reports',
   schedules:'workflows', myreports:'workflows', workflows:'workflows',
-  admin:'admin', dashboard:'intelligence'
+  kpis:'workflows', mykpis:'workflows',
+  admin:'admin'
 };
 
 function toggleNavSection(id, forceOpen) {
@@ -4217,7 +4190,7 @@ function toggleNavSection(id, forceOpen) {
 function initNavSections() {
   try {
     const state = JSON.parse(localStorage.getItem('sare_nav_state') || '{}');
-    ['intelligence','reports','workflows','admin'].forEach(id => {
+    ['intelligence','workflows','admin'].forEach(id => {
       if (state[id] === 'closed') toggleNavSection(id, false);
     });
   } catch(e) {}
@@ -4290,7 +4263,12 @@ async function sendChatMessage() {
     const systemPrompt = `You are SARE Analytics AI — a precise financial analysis assistant. ` +
       `When working with numbers: always sum row by row from raw data, never estimate, show arithmetic workings, ` +
       `and cross-check against any totals already in the report. ` +
-      `If data is missing or unclear, say so explicitly rather than guessing.` +
+      `If data is missing or unclear, say so explicitly rather than guessing. ` +
+      `FORMATTING: Write clear, well-structured answers — use markdown headers (##) to break up distinct sections, ` +
+      `bullet points for lists, and markdown tables when comparing multiple figures or items side by side. ` +
+      `Bold the specific numbers and conclusions that matter most. For substantial questions, structure your ` +
+      `answer the way a professional report would: a short direct answer first, then supporting detail organised ` +
+      `under clear headers. Avoid a single dense paragraph when the content has natural sections.` +
       reportContext;
 
     const messages = [
