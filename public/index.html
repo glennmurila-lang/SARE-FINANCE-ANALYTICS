@@ -3277,7 +3277,7 @@ async function loadWorkflows() {
         ${s.reviewNote ? `<div style="font-size:11px;color:var(--gray-500);margin-bottom:8px;background:var(--gray-50);padding:6px 10px;border-radius:6px;border-left:3px solid var(--gray-200)">💬 Reviewer note: ${s.reviewNote}</div>` : ''}
         ${s.reviewedBy ? `<div style="font-size:10px;color:var(--gray-400);margin-bottom:8px">Reviewed by ${s.reviewedBy} · ${s.reviewedAt ? new Date(s.reviewedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : ''}${typeof s.score==='number' ? ' · Accuracy score: '+s.score+'/5' : ''}</div>` : ''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="tbl-btn primary" style="background:var(--navy);color:#fff;border-color:var(--navy)" onclick="openSubmissionPanel('${s.id||s._id}')">${s.autoAnalysis ? '✦ View insights & query' : s.autoAnalysisError ? '⚠ View (analysis failed)' : '⏳ Opening...'}</button>
+          <button class="tbl-btn primary" style="background:var(--navy);color:#fff;border-color:var(--navy)" onclick="openSubmissionPanel('${s.id||s._id}')">${s.autoAnalysis ? '✦ View insights & query' : s.autoAnalysisError ? '⚠ Analysis failed — retry' : '▶ Open & analyse'}</button>
           <button class="tbl-btn" onclick="changeSubmissionStatus('${s.id||s._id}','${s.reviewStatus||'submitted'}')">🔄 Update status</button>
           <button class="tbl-btn" onclick="downloadSubmission('${s.id||s._id}','${(s.filename||'report').replace(/'/g,'')}')">⬇ Download</button>
         </div>
@@ -3300,31 +3300,7 @@ async function openSubmissionPanel(id) {
   try {
     const sub = await api('/api/submissions/' + id);
     submissionPanelData = sub;
-    if (sub.autoAnalysis) {
-      showSubmissionPanel(sub);
-    } else if (sub.autoAnalysisError) {
-      showSubmissionPanel(sub);
-    } else {
-      showSubmissionPanel({ ...sub, _polling: true });
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          const check = await api('/api/submissions/' + id + '/analysis');
-          if (check.ready) {
-            clearInterval(poll);
-            sub.autoAnalysis = check.analysis;
-            submissionPanelData = sub;
-            showSubmissionPanel(sub);
-          } else if (attempts >= 20 || check.error) {
-            clearInterval(poll);
-            sub._pollTimeout = true;
-            sub._pollError = check.error;
-            showSubmissionPanel(sub);
-          }
-        } catch { clearInterval(poll); }
-      }, 3000);
-    }
+    showSubmissionPanel(sub);
   } catch(e) {
     toast('Error loading submission: ' + e.message);
     const ov = document.getElementById('submission-panel-overlay');
@@ -3372,10 +3348,17 @@ function showSubmissionPanel(sub) {
 
   const statusHtml = sub._loading
     ? `<div style="text-align:center;padding:40px;color:var(--gray-400)">⏳ Loading...</div>`
-    : sub._polling
-    ? `<div style="text-align:center;padding:30px;color:var(--gray-400)"><div style="font-size:28px;margin-bottom:8px">🤖</div><div style="font-size:13px;font-weight:600;color:var(--navy)">AI is analysing this report</div><div style="font-size:11px;margin-top:4px">Usually takes 10–20 seconds. This will update automatically.</div></div>`
-    : (sub._pollTimeout||sub._pollError||sub.autoAnalysisError)
-    ? `<div style="text-align:center;padding:16px;color:#dc2626;font-size:12px">⚠ Analysis not ready yet — <button class="tbl-btn" onclick="retriggerAnalysis('${sid}')">↻ Analyse now</button></div>`
+    : sub._analysing
+    ? `<div style="text-align:center;padding:30px;color:var(--gray-400)"><div style="font-size:28px;margin-bottom:8px">🤖</div><div style="font-size:13px;font-weight:600;color:var(--navy)">Running AI analysis...</div><div style="font-size:11px;margin-top:4px">Usually takes 10–20 seconds.</div></div>`
+    : sub.autoAnalysisError
+    ? `<div style="text-align:center;padding:16px;color:#dc2626;font-size:12px">⚠ ${sub.autoAnalysisError} — <button class="tbl-btn" onclick="runSubmissionAnalysisNow('${sid}')">↻ Try again</button></div>`
+    : !a
+    ? `<div style="text-align:center;padding:24px;background:var(--gray-50);border-radius:8px;margin-bottom:4px">
+         <div style="font-size:28px;margin-bottom:8px">🤖</div>
+         <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px">This report hasn't been analysed yet</div>
+         <div style="font-size:11px;color:var(--gray-400);margin-bottom:14px">AI analysis runs on demand — click below whenever you're ready to review it.</div>
+         <button class="btn-primary" style="padding:9px 20px;width:auto" onclick="runSubmissionAnalysisNow('${sid}')">✦ Run AI Analysis</button>
+       </div>`
     : '';
 
   overlay.innerHTML = `
@@ -3718,34 +3701,50 @@ Assistant:`;
   renderSubmissionQueryHistory();
 }
 
-async function retriggerAnalysis(id) {
-  toast('Analysing now...');
+async function runSubmissionAnalysisNow(id, skipCache) {
+  const sub = submissionPanelData && (submissionPanelData._id === id || submissionPanelData.id === id) ? submissionPanelData : { _id: id };
+  sub._analysing = true;
+  sub.autoAnalysisError = null;
+  submissionPanelData = sub;
+  showSubmissionPanel(sub);
   try {
-    const sub = await api('/api/submissions/' + id);
-    const cleanData = (sub.reportText||sub.scheduleTitle||'').replace(/['"\\]/g,' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g,' ').replace(/\s+/g,' ');
-    const resp = await api('/api/analyse-submission','POST',{ title:sub.scheduleTitle, submitter:sub.submittedByName, department:sub.department||'Finance', role:'cfo', data:cleanData, skipCache:true });
-    if (resp.result) {
-      sub.autoAnalysis = resp.result;
+    const resp = await api('/api/submissions/' + id + '/analyse', 'POST', { skipCache: !!skipCache });
+    sub._analysing = false;
+    if (resp.ready && resp.analysis) {
+      sub.autoAnalysis = resp.analysis;
+      sub.autoAnalysisError = null;
       submissionPanelData = sub;
       showSubmissionPanel(sub);
-      toast('Analysis complete!');
-    } else { toast('Failed: ' + (resp.error||'Unknown error')); }
-  } catch(e) { toast('Error: ' + e.message); }
+      toast('✦ Analysis complete!');
+      loadWorkflows(); // refresh the button label on the list
+    } else {
+      sub.autoAnalysisError = resp.error || 'Unknown error';
+      submissionPanelData = sub;
+      showSubmissionPanel(sub);
+    }
+  } catch(e) {
+    sub._analysing = false;
+    sub.autoAnalysisError = e.message;
+    submissionPanelData = sub;
+    showSubmissionPanel(sub);
+  }
 }
 
 async function viewFullInsights(id) {
   closeSubmissionPanel();
   try {
-    toast('Loading full analysis...');
     const sub = await api('/api/submissions/' + id);
     const schedule = allSchedules.find(s => s.id === sub.scheduleId || s._id === sub.scheduleId);
     currentRole = schedule?.perspective || 'cfo';
     let result = sub.autoAnalysis;
     if (!result) {
-      const cleanData = (sub.reportText||sub.scheduleTitle||'').replace(/['"\\]/g,' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g,' ').replace(/\s+/g,' ').slice(0,3500);
-      const resp = await api('/api/analyse-submission','POST',{ title:sub.scheduleTitle, submitter:sub.submittedByName, department:sub.department||'Finance', role:currentRole, data:cleanData });
-      if (!resp.result) throw new Error(resp.error||'No result');
-      result = resp.result;
+      toast('Running AI analysis...');
+      const resp = await api('/api/submissions/' + id + '/analyse', 'POST', {});
+      if (!resp.ready || !resp.analysis) throw new Error(resp.error||'No result');
+      result = resp.analysis;
+      loadWorkflows(); // refresh the button label on the list
+    } else {
+      toast('Loading full analysis...');
     }
     result.role = currentRole;
     analysisResult = result;
