@@ -751,6 +751,7 @@ app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
       fileBuffer: req.file ? req.file.buffer.toString('base64') : null,
       fileMime: req.file?.mimetype || null,
       notes: notes||'', reportText,
+      dueDateAtSubmission: schedule.nextDue ? new Date(schedule.nextDue) : null,
       status: 'submitted', createdAt: new Date()
     });
     const nextDue = calcNextDue(schedule.frequency, new Date(schedule.nextDue));
@@ -832,6 +833,121 @@ app.get('/api/submissions/:id/analysis', auth, async (req,res) => {
       return res.json({ ready: false, error: sub.autoAnalysisError });
     }
     res.json({ ready: false, status: 'processing' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Update submission review status ───────────────────────────────────────────
+app.put('/api/submissions/:id/status', auth, async (req,res) => {
+  try {
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Not found' });
+    const isAdmin = req.user.role === 'admin';
+    const schedule = await schedulesDb.findOne({ _id: sub.scheduleId });
+    const isReviewer = schedule && (schedule.reviewerIds||[]).includes(req.user.id);
+    const isExec = req.user.accessLevel === 'executive';
+    if (!isAdmin && !isReviewer && !isExec) return res.status(403).json({ error: 'Only reviewers can update status' });
+    const { status, reviewNote, score } = req.body;
+    const allowed = ['submitted','under_review','closed','pending_info'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    const scoreNum = (score === undefined || score === null || score === '') ? undefined : Number(score);
+    if (scoreNum !== undefined && (isNaN(scoreNum) || scoreNum < 1 || scoreNum > 5)) {
+      return res.status(400).json({ error: 'Score must be between 1 and 5' });
+    }
+    const update = {
+      reviewStatus: status,
+      reviewNote: reviewNote||'',
+      reviewedBy: req.user.name,
+      reviewedById: req.user.id,
+      reviewedAt: new Date()
+    };
+    if (scoreNum !== undefined) update.score = scoreNum;
+    await submissionsDb.update({ _id: req.params.id }, { $set: update });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Assignee/reviewer KPIs ─────────────────────────────────────────────────────
+app.get('/api/kpis/assignees', auth, async (req,res) => {
+  try {
+    const isAdmin = req.user.role === 'admin';
+    const isExec = req.user.accessLevel === 'executive';
+    const isSenior = ['senior','manager'].includes(req.user.accessLevel);
+    if (!isAdmin && !isExec && !isSenior) return res.status(403).json({ error: 'Manager level or above required' });
+
+    const allSubs = await submissionsDb.find({});
+    const byAssignee = {};
+    const nowMs = Date.now();
+
+    allSubs.forEach(s => {
+      const key = s.submittedById || 'unknown';
+      if (!byAssignee[key]) {
+        byAssignee[key] = {
+          assigneeId: key,
+          name: s.submittedByName || 'Unknown',
+          department: s.department || '',
+          totalSubmissions: 0,
+          onTimeCount: 0,
+          lateCount: 0,
+          unknownDueCount: 0,
+          totalLateDays: 0,
+          reviewedCount: 0,
+          awaitingReviewCount: 0,
+          totalTurnaroundHours: 0,
+          scoreSum: 0,
+          scoreCount: 0,
+          oldestAwaitingHours: 0
+        };
+      }
+      const a = byAssignee[key];
+      a.totalSubmissions++;
+
+      const createdAt = new Date(s.createdAt);
+      if (s.dueDateAtSubmission) {
+        const due = new Date(s.dueDateAtSubmission);
+        if (createdAt.getTime() <= due.getTime()) {
+          a.onTimeCount++;
+        } else {
+          a.lateCount++;
+          a.totalLateDays += (createdAt.getTime() - due.getTime()) / (1000*60*60*24);
+        }
+      } else {
+        a.unknownDueCount++;
+      }
+
+      const reviewStatus = s.reviewStatus || 'submitted';
+      const isReviewed = !!s.reviewedAt;
+      if (isReviewed) {
+        a.reviewedCount++;
+        const hours = (new Date(s.reviewedAt).getTime() - createdAt.getTime()) / (1000*60*60);
+        a.totalTurnaroundHours += Math.max(0, hours);
+        if (typeof s.score === 'number') { a.scoreSum += s.score; a.scoreCount++; }
+      } else if (reviewStatus === 'submitted' || reviewStatus === 'under_review') {
+        a.awaitingReviewCount++;
+        const waitingHours = (nowMs - createdAt.getTime()) / (1000*60*60);
+        if (waitingHours > a.oldestAwaitingHours) a.oldestAwaitingHours = waitingHours;
+      }
+    });
+
+    const result = Object.values(byAssignee).map(a => {
+      const ratedCount = a.onTimeCount + a.lateCount;
+      return {
+        assigneeId: a.assigneeId,
+        name: a.name,
+        department: a.department,
+        totalSubmissions: a.totalSubmissions,
+        onTimeCount: a.onTimeCount,
+        lateCount: a.lateCount,
+        onTimeRate: ratedCount ? Math.round((a.onTimeCount / ratedCount) * 100) : null,
+        avgDaysLate: a.lateCount ? +(a.totalLateDays / a.lateCount).toFixed(1) : null,
+        reviewedCount: a.reviewedCount,
+        awaitingReviewCount: a.awaitingReviewCount,
+        oldestAwaitingHours: +a.oldestAwaitingHours.toFixed(1),
+        avgReviewTurnaroundHours: a.reviewedCount ? +(a.totalTurnaroundHours / a.reviewedCount).toFixed(1) : null,
+        avgScore: a.scoreCount ? +(a.scoreSum / a.scoreCount).toFixed(1) : null
+      };
+    }).sort((a,b) => b.totalSubmissions - a.totalSubmissions);
+
+    res.json(result);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
