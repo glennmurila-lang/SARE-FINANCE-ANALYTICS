@@ -1310,6 +1310,17 @@ async function api(endpoint, method='GET', body=null) {
   if(TOKEN) headers['Authorization']='Bearer '+TOKEN;
   const res=await fetch(API+endpoint,{method,headers,body:body?JSON.stringify(body):undefined});
   const data=await res.json().catch(()=>({error:'Network error'}));
+  if(res.status===401) {
+    // Token expired or invalid — clear session and prompt re-login
+    TOKEN=''; USER=null;
+    localStorage.removeItem('sare_token');
+    localStorage.removeItem('sare_user');
+    document.getElementById('app-screen').style.display='none';
+    document.getElementById('auth-screen').style.display='flex';
+    showPanel('login-panel');
+    toast('⚠ Your session has expired. Please sign in again.');
+    throw new Error('Session expired — please sign in again');
+  }
   if(!res.ok) throw new Error(data.error||'Request failed');
   return data;
 }
