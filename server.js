@@ -332,6 +332,19 @@ app.delete('/api/roles/:id', auth, adminOnly, async (req,res) => {
 });
 
 // ── Users ─────────────────────────────────────────────────────────────────────
+app.get('/api/team/count', auth, async (req,res) => {
+  try {
+    const isAdmin = req.user.role === 'admin';
+    const isExec = req.user.accessLevel === 'executive';
+    const users = (isAdmin || isExec)
+      ? await db.find({})
+      : await db.find({ department: req.user.department });
+    const byDepartment = {};
+    (await db.find({})).forEach(u => { byDepartment[u.department] = (byDepartment[u.department]||0) + 1; });
+    res.json({ count: users.length, scope: (isAdmin || isExec) ? 'organisation' : 'department', byDepartment });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/admin/users', auth, adminOnly, async (req,res) => {
   try { res.json((await db.find({},{ password:0 })).map(u=>({ ...u, id:u._id }))); }
   catch(e) { res.status(500).json({ error:e.message }); }
