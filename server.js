@@ -70,6 +70,60 @@ async function getCachedOrCall(cacheKey, callFn) {
   return result;
 }
 
+// ── Shared submission-analysis logic (used by manual "Analyse now" triggers) ───
+function buildSubmissionAnalysisPrompt({ title, submitter, department, role, data }) {
+  return `You are an elite business intelligence analyst. Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
+
+Report: ${title}
+Submitted by: ${submitter}
+Department: ${department}
+Data:
+${data}
+
+CRITICAL ACCURACY RULES:
+1. Base every number strictly on the data provided above - never estimate or invent figures
+2. If you calculate a total, sum the exact raw figures shown - do not round creatively
+3. Be literal and consistent - the same data should always produce the same numbers
+4. If a figure cannot be determined from the data, say "Not available" rather than guessing
+
+ANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact. Avoid generic statements - be specific to this data.
+
+Return this exact JSON structure with real values based on the data:
+{"role":"${role}","summary":"A detailed 3-sentence summary of the overall position, the most important finding, and what needs attention","kpis":[{"label":"Metric name from data","value":"KES X or relevant unit","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with the exact figure that proves it","Second strength with evidence"],"weaknesses":["Specific weakness with the exact figure and why it matters","Second weakness with evidence and impact"],"opportunities":["Specific opportunity, quantified where possible","Second opportunity with rationale"],"threats":["Specific threat with magnitude/likelihood","Second threat with context"]},"insights":[{"title":"Specific finding title naming the actual issue","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"danger","badge":"Critical"},{"title":"Third specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe and expected outcome","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
+}
+
+async function runSubmissionAnalysis({ title, submitter, department, role, data, cacheSuffix, skipCache }) {
+  const prompt = buildSubmissionAnalysisPrompt({ title, submitter, department, role, data });
+  const cacheKey = hashPrompt(prompt + '|' + (cacheSuffix||'submission') + '|' + role);
+  const callFn = async () => {
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const text = (message.content || []).map(b => b.text || '').join('');
+    let result;
+    try {
+      result = parseAIJson(text);
+    } catch(parseErr) {
+      throw new Error('AI response could not be parsed: ' + parseErr.message);
+    }
+    if (!result.trends) {
+      result.trends = {
+        revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
+        wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
+        transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
+        compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
+      };
+    }
+    if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
+    if (!result.standardChecklist) result.standardChecklist = [];
+    return { result, success: true };
+  };
+  return skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
+}
+
 // ── Email templates ───────────────────────────────────────────────────────────
 function emailBase(bodyHtml) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -154,8 +208,8 @@ function scheduleNotificationEmail(ownerName, title, description, dueDate, repor
 function submissionNotificationEmail(reviewerName, reportTitle, submitterName, submissionId, reportType) {
   const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
   return emailBase(`
-    <div class="greeting">Report submitted — insights ready 📊</div>
-    <p class="text">Hi ${reviewerName}, <strong>${submitterName}</strong> has submitted the <strong>${reportTitle}</strong>. SARE Analytics has automatically generated insights.</p>
+    <div class="greeting">Report submitted — ready for review 📊</div>
+    <p class="text">Hi ${reviewerName}, <strong>${submitterName}</strong> has submitted the <strong>${reportTitle}</strong>. Open it to review, and run AI analysis whenever you're ready.</p>
     <div class="cred-box">
       <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${reportTitle}</span></div>
       <div class="cred-row"><span class="cred-label">Submitted by</span><span class="cred-value">${submitterName}</span></div>
@@ -469,56 +523,7 @@ app.post('/api/analyse-submission', auth, async (req, res) => {
       return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to Render environment variables.' });
     }
     const { title, submitter, department, role, data, skipCache } = req.body;
-
-    const prompt = `You are an elite business intelligence analyst. Analyse this ${department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.
-
-Report: ${title}
-Submitted by: ${submitter}
-Department: ${department}
-Data:
-${data}
-
-CRITICAL ACCURACY RULES:
-1. Base every number strictly on the data provided above - never estimate or invent figures
-2. If you calculate a total, sum the exact raw figures shown - do not round creatively
-3. Be literal and consistent - the same data should always produce the same numbers
-4. If a figure cannot be determined from the data, say "Not available" rather than guessing
-
-ANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact. Avoid generic statements - be specific to this data.
-
-Return this exact JSON structure with real values based on the data:
-{"role":"${role}","summary":"A detailed 3-sentence summary of the overall position, the most important finding, and what needs attention","kpis":[{"label":"Metric name from data","value":"KES X or relevant unit","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with the exact figure that proves it","Second strength with evidence"],"weaknesses":["Specific weakness with the exact figure and why it matters","Second weakness with evidence and impact"],"opportunities":["Specific opportunity, quantified where possible","Second opportunity with rationale"],"threats":["Specific threat with magnitude/likelihood","Second threat with context"]},"insights":[{"title":"Specific finding title naming the actual issue","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"danger","badge":"Critical"},{"title":"Third specific finding","body":"2-3 sentence deep-dive with figures, cause, and impact","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe and expected outcome","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
-
-    const cacheKey = hashPrompt(prompt + '|submission|' + role);
-
-    const callFn = async () => {
-      const message = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
-        temperature: 0,
-        messages: [{ role: 'user', content: prompt }]
-      });
-      const text = (message.content || []).map(b => b.text || '').join('');
-      let result;
-      try {
-        result = parseAIJson(text);
-      } catch(parseErr) {
-        throw new Error('AI response could not be parsed: ' + parseErr.message);
-      }
-      if (!result.trends) {
-        result.trends = {
-          revenue: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], data: [0,0,0,0,0,0], growth: '-', topProduct: '-' },
-          wallets: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], active: [0,0,0,0,0,0], dormant: [0,0,0,0,0,0] },
-          transactions: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], success: [0,0,0,0,0,0], failed: [0,0,0,0,0,0], pending: [0,0,0,0,0,0] },
-          compliance: { labels: ['Jan','Feb','Mar','Apr','May','Jun'], highValue: [0,0,0,0,0,0], dormantFlags: [0,0,0,0,0,0] }
-        };
-      }
-      if (!result.gapChecker) result.gapChecker = { present: [], missing: [], warning: [] };
-      if (!result.standardChecklist) result.standardChecklist = [];
-      return { result, success: true };
-    };
-
-    const finalResult = skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
+    const finalResult = await runSubmissionAnalysis({ title, submitter, department, role, data, cacheSuffix: 'submission', skipCache });
     res.json(finalResult);
   } catch(e) {
     console.error('analyse-submission error:', e.message);
@@ -770,43 +775,51 @@ app.post('/api/submissions', auth, upload.single('report'), async (req,res) => {
     const nextDue = calcNextDue(schedule.frequency, new Date(schedule.nextDue));
     await schedulesDb.update({ _id: scheduleId }, { $set: { nextDue, lastSubmitted: new Date() } });
 
-    // ── Auto-analysis: run in background immediately after submission ──────────
-    setImmediate(async () => {
-      try {
-        const cleanData = reportText.replace(/['"\\]/g, ' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g, ' ').replace(/\s+/g, ' ');
-        const role = schedule.perspective || 'cfo';
-        const prompt = `You are an elite business intelligence analyst. Analyse this ${req.user.department} business report and respond with ONLY a JSON object. No markdown, no explanation, just the JSON.\n\nReport: ${schedule.title}\nSubmitted by: ${req.user.name}\nDepartment: ${req.user.department}\nData:\n${cleanData}\n\nCRITICAL ACCURACY RULES:\n1. Base every number strictly on the data provided above - never estimate or invent figures\n2. If you calculate a total, sum the exact raw figures shown - do not round creatively\n3. Be literal and consistent - the same data should always produce the same numbers\n4. If a figure cannot be determined from the data, say "Not available" rather than guessing\n\nANALYSIS DEPTH REQUIRED: Each insight must be a 2-3 sentence deep-dive that states the finding with exact figures, explains why it matters, and notes the business impact.\n\nReturn this exact JSON structure:\n{"role":"${role}","summary":"3-sentence summary of overall position, key finding, and what needs attention","kpis":[{"label":"Metric from data","value":"KES X","delta":"+/-X%","positive":true},{"label":"Metric 2","value":"value","delta":"+/-X%","positive":false},{"label":"Metric 3","value":"value","delta":"+/-X%","positive":true},{"label":"Metric 4","value":"value","delta":"+/-X%","positive":false}],"swot":{"strengths":["Specific strength with exact figure"],"weaknesses":["Specific weakness with exact figure and impact"],"opportunities":["Specific opportunity, quantified"],"threats":["Specific threat with magnitude"]},"insights":[{"title":"Specific finding","body":"2-3 sentence deep-dive with exact figures, cause, and business impact","type":"warning","badge":"Watch"},{"title":"Second finding","body":"2-3 sentence deep-dive","type":"danger","badge":"Critical"},{"title":"Third finding","body":"2-3 sentence deep-dive","type":"info","badge":"Info"}],"recommendations":["Specific actionable recommendation with timeframe","Second recommendation with timeframe","Third recommendation with timeframe and owner"]}`;
-        const cacheKey = hashPrompt(prompt + '|autoanalysis|' + role);
-        const callFn = async () => {
-          const message = await anthropic.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 2000,
-            temperature: 0,
-            messages: [{ role: 'user', content: prompt }]
-          });
-          const text = (message.content || []).map(b => b.text || '').join('');
-          const result = parseAIJson(text);
-          if (!result.trends) result.trends = { revenue:{labels:[],data:[],growth:'-',topProduct:'-'}, wallets:{labels:[],active:[],dormant:[]}, transactions:{labels:[],success:[],failed:[],pending:[]}, compliance:{labels:[],highValue:[],dormantFlags:[]} };
-          if (!result.gapChecker) result.gapChecker = { present:[], missing:[], warning:[] };
-          if (!result.standardChecklist) result.standardChecklist = [];
-          return { result, success: true };
-        };
-        const analysis = await getCachedOrCall(cacheKey, callFn);
-        await submissionsDb.update({ _id: submission._id }, { $set: { autoAnalysis: analysis.result, autoAnalysedAt: new Date() } });
-        console.log('Auto-analysis complete for submission:', submission._id);
-      } catch(e) {
-        console.error('Auto-analysis failed for submission', submission._id, ':', e.message);
-        await submissionsDb.update({ _id: submission._id }, { $set: { autoAnalysis: null, autoAnalysisError: e.message } });
-      }
-    });
+    // NOTE: AI analysis is no longer run automatically on submission.
+    // Reviewers (or the submitter) trigger it manually via POST /api/submissions/:id/analyse.
     const reviewerUsers = await db.find({ _id: { $in: schedule.reviewerIds||[] } });
     for (const reviewer of reviewerUsers) {
       await sendEmail(reviewer.email,
-        `Report submitted: ${schedule.title} — insights ready`,
+        `Report submitted: ${schedule.title} — ready for review`,
         submissionNotificationEmail(reviewer.name, schedule.title, req.user.name, submission._id, schedule.reportType)
       );
     }
     res.json({ ...submission, id: submission._id, reportText: undefined });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Manually trigger AI analysis for a submission (on demand, not automatic) ───
+app.post('/api/submissions/:id/analyse', auth, async (req, res) => {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI service not configured. Add ANTHROPIC_API_KEY to Render environment variables.' });
+    }
+    const sub = await submissionsDb.findOne({ _id: req.params.id });
+    if (!sub) return res.status(404).json({ error: 'Not found' });
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = sub.submittedById === req.user.id;
+    const schedule = await schedulesDb.findOne({ _id: sub.scheduleId });
+    const isReviewer = schedule && (schedule.reviewerIds||[]).includes(req.user.id);
+    const isExec = req.user.accessLevel === 'executive';
+    if (!isAdmin && !isOwner && !isReviewer && !isExec) {
+      return res.status(403).json({ error: 'You do not have permission to analyse this submission' });
+    }
+
+    const cleanData = (sub.reportText||sub.scheduleTitle||'').replace(/['"\\]/g, ' ').replace(/[^a-zA-Z0-9\s.,;:()+\-/%@=]/g, ' ').replace(/\s+/g, ' ');
+    const role = schedule?.perspective || 'cfo';
+    const { skipCache } = req.body || {};
+
+    try {
+      const analysis = await runSubmissionAnalysis({
+        title: sub.scheduleTitle, submitter: sub.submittedByName, department: sub.department || 'Finance',
+        role, data: cleanData, cacheSuffix: 'submission', skipCache: !!skipCache
+      });
+      await submissionsDb.update({ _id: sub._id }, { $set: { autoAnalysis: analysis.result, autoAnalysedAt: new Date(), autoAnalysisError: null } });
+      res.json({ ready: true, analysis: analysis.result });
+    } catch(e) {
+      await submissionsDb.update({ _id: sub._id }, { $set: { autoAnalysisError: e.message } });
+      res.status(500).json({ error: e.message });
+    }
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
