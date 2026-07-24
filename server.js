@@ -964,6 +964,86 @@ app.get('/api/kpis/assignees', auth, async (req,res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+function getIsoWeekInfo(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  const monday = new Date(date);
+  const day = monday.getDay() || 7;
+  monday.setDate(monday.getDate() - day + 1);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = dt => dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
+  return { year: d.getUTCFullYear(), week, startLabel: fmt(monday), endLabel: fmt(sunday) };
+}
+
+// ── My own KPIs (any authenticated user, own data only) ────────────────────────
+app.get('/api/kpis/mine', auth, async (req,res) => {
+  try {
+    const subs = (await submissionsDb.find({ submittedById: req.user.id })).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const reports = subs.map(s => {
+      const createdAt = new Date(s.createdAt);
+      const due = s.dueDateAtSubmission ? new Date(s.dueDateAtSubmission) : null;
+      const onTime = due ? createdAt.getTime() <= due.getTime() : null;
+      return {
+        id: s._id,
+        title: s.scheduleTitle || 'Report',
+        department: s.department || '',
+        createdAt: s.createdAt,
+        onTime,
+        reviewStatus: s.reviewStatus || 'submitted',
+        reviewedAt: s.reviewedAt || null,
+        reviewedBy: s.reviewedBy || null,
+        reviewNote: s.reviewNote || '',
+        score: typeof s.score === 'number' ? s.score : null
+      };
+    });
+
+    const weekMap = {}, monthMap = {};
+    reports.forEach(r => {
+      const d = new Date(r.createdAt);
+      const wi = getIsoWeekInfo(d);
+      const wKey = `${wi.year}-W${String(wi.week).padStart(2,'0')}`;
+      if (!weekMap[wKey]) weekMap[wKey] = { key: wKey, year: wi.year, week: wi.week, startLabel: wi.startLabel, endLabel: wi.endLabel, count:0, onTimeCount:0, lateCount:0, scoreSum:0, scoreCount:0 };
+      const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      if (!monthMap[mKey]) monthMap[mKey] = { key: mKey, year: d.getFullYear(), month: d.getMonth()+1, label: d.toLocaleDateString('en-GB',{month:'long',year:'numeric'}), count:0, onTimeCount:0, lateCount:0, scoreSum:0, scoreCount:0 };
+      [weekMap[wKey], monthMap[mKey]].forEach(bucket => {
+        bucket.count++;
+        if (r.onTime === true) bucket.onTimeCount++;
+        else if (r.onTime === false) bucket.lateCount++;
+        if (typeof r.score === 'number') { bucket.scoreSum += r.score; bucket.scoreCount++; }
+      });
+    });
+    const finalize = bucket => {
+      const rated = bucket.onTimeCount + bucket.lateCount;
+      return {
+        ...bucket,
+        onTimeRate: rated ? Math.round((bucket.onTimeCount / rated) * 100) : null,
+        avgScore: bucket.scoreCount ? +(bucket.scoreSum / bucket.scoreCount).toFixed(1) : null
+      };
+    };
+    const byWeek = Object.values(weekMap).map(finalize).sort((a,b) => b.key.localeCompare(a.key));
+    const byMonth = Object.values(monthMap).map(finalize).sort((a,b) => b.key.localeCompare(a.key));
+
+    const onTimeReports = reports.filter(r => r.onTime !== null);
+    const scoredReports = reports.filter(r => typeof r.score === 'number');
+    const overall = {
+      totalSubmissions: reports.length,
+      onTimeCount: onTimeReports.filter(r => r.onTime).length,
+      lateCount: onTimeReports.filter(r => !r.onTime).length,
+      onTimeRate: onTimeReports.length ? Math.round((onTimeReports.filter(r=>r.onTime).length / onTimeReports.length) * 100) : null,
+      avgScore: scoredReports.length ? +(scoredReports.reduce((sum,r)=>sum+r.score,0) / scoredReports.length).toFixed(1) : null,
+      reviewedCount: reports.filter(r => r.reviewedAt).length,
+      awaitingReviewCount: reports.filter(r => !r.reviewedAt && r.reviewStatus !== 'closed').length
+    };
+
+    res.json({ overall, reports, byWeek, byMonth });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/schedules/:id/remind', auth, async (req,res) => {
   try {
     const schedule = await schedulesDb.findOne({ _id: req.params.id });
