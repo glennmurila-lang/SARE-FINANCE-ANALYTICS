@@ -4227,15 +4227,14 @@ async function loadDashboard() {
 
   // Load all data in parallel
   try {
-    const isAdmin = USER?.role === 'admin' || USER?.accessLevel === 'executive';
     const promises = [
       api('/api/history').catch(()=>[]),
       api('/api/schedules').catch(()=>[]),
       api('/api/submissions').catch(()=>[]),
-      isAdmin ? api('/api/admin/users').catch(()=>[]) : Promise.resolve([]),
+      api('/api/team/count').catch(()=>({count:null})),
       api('/api/departments').catch(()=>[]),
     ];
-    const [history, schedules, submissions, users, depts] = await Promise.all(promises);
+    const [history, schedules, submissions, teamInfo, depts] = await Promise.all(promises);
 
     // Hero stats
     const now2 = new Date();
@@ -4243,7 +4242,7 @@ async function loadDashboard() {
     document.getElementById('dhs-analyses').textContent = history.length;
     document.getElementById('dhs-schedules').textContent = schedules.filter(s=>s.active).length;
     document.getElementById('dhs-submissions').textContent = submissions.length;
-    document.getElementById('dhs-users').textContent = users.length || '—';
+    document.getElementById('dhs-users').textContent = teamInfo.count!==null ? teamInfo.count : '—';
     document.getElementById('dhs-overdue').textContent = overdue;
 
     // Alerts
@@ -4301,7 +4300,7 @@ async function loadDashboard() {
               ${d.name}
             </div>
             <div class="dash-dept-bar"><div class="dash-dept-fill" style="width:${pct}%;background:${d.color||deptColors[i%deptColors.length]}"></div></div>
-            <div class="dash-dept-meta">${subs} submission${subs!==1?'s':''} · ${users.filter?users.filter(u=>u.department===d.name).length:0} members</div>
+            <div class="dash-dept-meta">${subs} submission${subs!==1?'s':''} · ${(teamInfo.byDepartment && teamInfo.byDepartment[d.name]) || 0} members</div>
           </div>`;
         }).join('');
 
