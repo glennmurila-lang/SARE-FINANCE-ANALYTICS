@@ -463,6 +463,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
 .chat-msg-bubble th{background:var(--navy);color:#fff;padding:6px 10px;text-align:left}
 .chat-msg-bubble td{padding:6px 10px;border-bottom:1px solid var(--gray-200)}
 .chat-msg-time{font-size:9px;color:var(--gray-400);margin-top:4px}
+.chat-msg-export{display:flex;gap:6px;margin-top:6px}
+.chat-export-btn{font-size:10px;font-weight:600;color:var(--gray-500);background:var(--gray-50);border:1px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;transition:all 0.15s;font-family:inherit}
+.chat-export-btn:hover{background:var(--gray-100);color:var(--navy);border-color:var(--gray-300)}
 .chat-input-area{padding:14px 18px;border-top:1px solid var(--gray-100)}
 .chat-input-row{display:flex;gap:8px;align-items:flex-end}
 .chat-textarea{flex:1;min-height:44px;max-height:120px;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:12px;font-size:13px;font-family:inherit;resize:none;outline:none}
@@ -3662,6 +3665,8 @@ Department: ${sub.department}${analysisCtx}${dataCtx}
 
 When asked about figures, calculate row by row from raw data. Never estimate. Cross-check against any summary totals in the data.
 
+FORMATTING: use markdown headers (##) for distinct sections, bullet points for lists, and markdown tables when comparing multiple figures side by side. Bold the key numbers and conclusions. Avoid a single dense paragraph for substantial questions.
+
 Conversation:
 ${history}
 User: ${question}
@@ -4080,23 +4085,100 @@ function renderChatThread(thread) {
       <div style="font-size:12px;max-width:320px">${(thread.reports||[]).length > 0 ? 'Ask anything about the ' + (thread.reports.length > 1 ? thread.reports.length + ' attached reports' : 'attached report') : 'Attach a report above, then ask anything.'}</div>
     </div>`;
   } else {
-    msgContainer.innerHTML = thread.messages.map(m => renderChatMessage(m)).join('');
+    msgContainer.innerHTML = thread.messages.map((m,i) => renderChatMessage(m,i)).join('');
     msgContainer.scrollTop = msgContainer.scrollHeight;
   }
 }
 
-function renderChatMessage(m) {
+function renderChatMessage(m, i) {
   const initials = m.role === 'user' ? (USER?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : 'S';
   const time = new Date(m.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   const bodyHtml = m.role === 'assistant' ? markdownToHtml(m.content) : m.content.replace(/\n/g,'<br>');
+  const exportRow = m.role === 'assistant'
+    ? `<div class="chat-msg-export">
+         <button class="chat-export-btn" onclick="exportChatMessage(${i},'pdf')">⬇ PDF</button>
+         <button class="chat-export-btn" onclick="exportChatMessage(${i},'doc')">⬇ Word</button>
+       </div>`
+    : '';
   return `<div class="chat-msg ${m.role}">
     <div class="chat-msg-avatar">${initials}</div>
     <div>
       <div class="chat-msg-bubble">${bodyHtml}</div>
       <div class="chat-msg-time">${time}</div>
+      ${exportRow}
     </div>
   </div>`;
 }
+
+// ── Export a single chat answer as PDF or Word ─────────────────────────────────
+function exportChatMessage(index, format) {
+  const thread = chatThreads.find(t => t.id === currentChatThreadId);
+  if (!thread || !thread.messages[index]) { toast('Could not find that message'); return; }
+  const msg = thread.messages[index];
+  const bodyHtml = markdownToHtml(msg.content);
+  const date = new Date(msg.timestamp).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const title = thread.title || 'Chat Response';
+
+  if (format === 'pdf') {
+    const printWindow = window.open('','_blank','width=900,height=700');
+    printWindow.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="UTF-8"><title>SARE Analytics — ${title}</title>
+      <style>
+        @page{size:A4;margin:14mm}
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a1a;font-size:13px;line-height:1.6}
+        h1{font-size:19px;color:#0b1929;margin-bottom:4px}
+        .meta{font-size:11px;color:#6b7280;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #1B6FE4}
+        table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+        th{background:#0b1929;color:#fff;padding:8px 10px;text-align:left}
+        td{padding:7px 10px;border-bottom:1px solid #e5e7eb}
+        tr:nth-child(even){background:#f9fafb}
+        h2,h3{color:#0b1929;margin:16px 0 8px}
+        .no-print{position:fixed;top:12px;right:12px;display:flex;gap:8px}
+        .no-print button{padding:9px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+        @media print{.no-print{display:none!important}}
+      </style>
+    </head><body>
+      <div class="no-print">
+        <button onclick="window.print()" style="background:#1B6FE4;color:#fff;box-shadow:0 4px 12px rgba(27,111,228,0.3)">🖨️ Save as PDF</button>
+        <button onclick="window.close()" style="background:#f3f4f6;color:#374151">✕ Close</button>
+      </div>
+      <h1>${title}</h1>
+      <div class="meta">SARE Analytics · Make It Make Cents &nbsp;·&nbsp; Generated ${date}</div>
+      ${bodyHtml}
+    </body></html>`);
+    printWindow.document.close();
+  } else {
+    // Word-compatible .doc export (HTML with Word XML namespaces, opens natively in MS Word)
+    const docHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>${title}</title>
+      <style>
+        body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a1a}
+        h1{font-size:16pt;color:#0b1929}
+        h2,h3{color:#0b1929}
+        table{border-collapse:collapse;width:100%}
+        th{background:#0b1929;color:#fff;padding:6px 8px;text-align:left}
+        td{padding:6px 8px;border:1px solid #e5e7eb}
+        .meta{color:#6b7280;font-size:10pt;margin-bottom:14px}
+      </style></head>
+      <body>
+        <h1>${title}</h1>
+        <div class="meta">SARE Analytics · Make It Make Cents · Generated ${date}</div>
+        ${bodyHtml}
+      </body></html>`;
+    const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (title.replace(/[^a-z0-9]+/gi,'_') || 'chat_response') + '.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  toast(format === 'pdf' ? '📄 Opening PDF preview...' : '⬇ Word document downloaded');
+}
+
 
 // ── Attach report to chat ──────────────────────────────────────────────────────
 function handleChatDrop(e) {
