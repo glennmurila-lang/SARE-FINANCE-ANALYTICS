@@ -377,7 +377,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
 .dash-hero-title{font-size:24px;font-weight:700;letter-spacing:-0.03em;margin-bottom:6px;position:relative}
 .dash-hero-sub{font-size:13px;color:rgba(255,255,255,0.6);position:relative}
 .dash-hero-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:20px;position:relative}
-.dash-hero-stat{background:rgba(255,255,255,0.1);border-radius:10px;padding:14px 16px;backdrop-filter:blur(10px)}
+.dash-hero-stat{background:rgba(255,255,255,0.1);border-radius:10px;padding:14px 16px;backdrop-filter:blur(10px);transition:background 0.15s}
+.dash-hero-stat:hover{background:rgba(255,255,255,0.18)}
 .dash-hero-stat-val{font-size:22px;font-weight:700;letter-spacing:-0.03em}
 .dash-hero-stat-label{font-size:11px;color:rgba(255,255,255,0.6);margin-top:3px}
 .dash-hero-stat-delta{font-size:11px;font-weight:600;margin-top:4px}
@@ -632,11 +633,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
             </div>
           </div>
           <div class="dash-hero-stats" id="dash-hero-stats">
-            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-analyses">—</div><div class="dash-hero-stat-label">Total analyses</div></div>
-            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-schedules">—</div><div class="dash-hero-stat-label">Active schedules</div></div>
-            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-submissions">—</div><div class="dash-hero-stat-label">Reports submitted</div></div>
-            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-users">—</div><div class="dash-hero-stat-label">Team members</div></div>
-            <div class="dash-hero-stat"><div class="dash-hero-stat-val" id="dhs-overdue" style="color:#FCA5A5">—</div><div class="dash-hero-stat-label">Overdue reports</div></div>
+            <div class="dash-hero-stat" style="cursor:pointer" onclick="gotoView('history')" title="View report history"><div class="dash-hero-stat-val" id="dhs-analyses">—</div><div class="dash-hero-stat-label">Total analyses</div></div>
+            <div class="dash-hero-stat" style="cursor:pointer" onclick="gotoView('schedules')" title="View report schedules"><div class="dash-hero-stat-val" id="dhs-schedules">—</div><div class="dash-hero-stat-label">Active schedules</div></div>
+            <div class="dash-hero-stat" style="cursor:pointer" onclick="gotoView('workflows')" title="View submissions"><div class="dash-hero-stat-val" id="dhs-submissions">—</div><div class="dash-hero-stat-label">Reports submitted</div></div>
+            <div class="dash-hero-stat" id="dhs-users-tile" style="cursor:pointer" onclick="goToTeamMembers()" title="View team"><div class="dash-hero-stat-val" id="dhs-users">—</div><div class="dash-hero-stat-label">Team members</div></div>
+            <div class="dash-hero-stat" style="cursor:pointer" onclick="gotoView('schedules')" title="View overdue reports"><div class="dash-hero-stat-val" id="dhs-overdue" style="color:#FCA5A5">—</div><div class="dash-hero-stat-label">Overdue reports</div></div>
           </div>
         </div>
 
@@ -1224,6 +1225,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
           <div class="card" style="background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;margin-bottom:14px">
             <div style="font-size:14px;font-weight:700;margin-bottom:8px">⊕ Master report consolidation</div>
             <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:14px">Select reports below to combine into one master analysis. AI will merge all data into a single cross-department view.</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+              <select id="cons-filter-dept" onchange="filterConsolidationList()" style="padding:7px 10px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,0.15);color:#fff;cursor:pointer">
+                <option value="">All departments</option>
+              </select>
+              <input id="cons-filter-text" oninput="filterConsolidationList()" placeholder="Filter by person or report name…" style="flex:1;min-width:160px;padding:7px 10px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,0.15);color:#fff">
+              <button class="tbl-btn" style="font-size:10px" onclick="setAllVisibleConsolidationChecks(true)">Select all visible</button>
+              <button class="tbl-btn" style="font-size:10px" onclick="setAllVisibleConsolidationChecks(false)">Clear all</button>
+            </div>
             <div id="consolidation-checklist" style="margin-bottom:14px;max-height:200px;overflow-y:auto"></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <select id="consolidation-perspective" style="padding:8px 12px;border:none;border-radius:6px;font-size:12px;background:rgba(255,255,255,0.15);color:#fff;cursor:pointer">
@@ -1475,6 +1484,14 @@ async function showApp(){
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+function goToTeamMembers(){
+  if (USER?.role === 'admin') {
+    gotoView('admin');
+  } else {
+    toast('👥 Only admins manage the full team list — ask your admin if you need to see it');
+  }
+}
+
 function gotoView(v){
   if (v === 'kpis' && window._canSeeKpis === false) {
     toast('🔒 Assignee KPIs is available to manager-level roles and above');
@@ -4851,16 +4868,44 @@ async function openConsolidation() {
       document.getElementById('consolidation-checklist').innerHTML = '<div style="font-size:12px;color:rgba(255,255,255,0.5);text-align:center;padding:16px">No submitted reports yet. Reports will appear here once team members submit them.</div>';
       return;
     }
-    document.getElementById('consolidation-checklist').innerHTML = allSubmissions.map((s,i) => `
-      <label class="consolidation-check">
-        <input type="checkbox" id="cons-check-${i}" value="${s.id||s._id}">
+    // Populate department filter from whatever departments actually appear in the visible submissions
+    const deptSet = [...new Set(allSubmissions.map(s => s.department || 'Unknown'))].sort();
+    const deptFilter = document.getElementById('cons-filter-dept');
+    deptFilter.innerHTML = '<option value="">All departments</option>' + deptSet.map(d => `<option value="${d}">${d}</option>`).join('');
+    renderConsolidationChecklist(allSubmissions);
+  } catch(e) { toast('Error loading submissions: ' + e.message); }
+}
+
+function renderConsolidationChecklist(list) {
+  document.getElementById('consolidation-checklist').innerHTML = list.length === 0
+    ? '<div style="font-size:12px;color:rgba(255,255,255,0.5);text-align:center;padding:16px">No reports match this filter</div>'
+    : list.map((s,i) => `
+      <label class="consolidation-check" data-dept="${s.department||'Unknown'}" data-search="${(s.scheduleTitle||'').toLowerCase()} ${(s.submittedByName||'').toLowerCase()}">
+        <input type="checkbox" id="cons-check-${s.id||s._id}" value="${s.id||s._id}">
         <div style="flex:1">
           <div style="font-weight:600">${s.scheduleTitle||'Report'}</div>
           <div style="font-size:10px;color:rgba(255,255,255,0.6)">${s.submittedByName||'Unknown'} · ${s.department||'—'} · ${new Date(s.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
         </div>
         <span style="font-size:10px;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:10px">${s.filename||'—'}</span>
       </label>`).join('');
-  } catch(e) { toast('Error loading submissions: ' + e.message); }
+}
+
+function filterConsolidationList() {
+  const dept = document.getElementById('cons-filter-dept').value;
+  const text = document.getElementById('cons-filter-text').value.trim().toLowerCase();
+  const filtered = allSubmissions.filter(s => {
+    if (dept && (s.department||'Unknown') !== dept) return false;
+    if (text && !`${(s.scheduleTitle||'').toLowerCase()} ${(s.submittedByName||'').toLowerCase()}`.includes(text)) return false;
+    return true;
+  });
+  // Preserve existing checks when re-rendering after a filter change
+  const checkedIds = new Set(Array.from(document.querySelectorAll('#consolidation-checklist input:checked')).map(c => c.value));
+  renderConsolidationChecklist(filtered);
+  checkedIds.forEach(id => { const el = document.getElementById('cons-check-'+id); if (el) el.checked = true; });
+}
+
+function setAllVisibleConsolidationChecks(value) {
+  document.querySelectorAll('#consolidation-checklist input[type=checkbox]').forEach(c => c.checked = value);
 }
 
 async function runConsolidation() {
