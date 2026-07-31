@@ -1158,8 +1158,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
         <div class="card" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
             <div class="card-title" style="margin:0">📅 Report schedules</div>
-            <button class="topbar-btn primary" onclick="openAddSchedule()">＋ Create schedule</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="topbar-btn" id="sch-leave-btn" onclick="toggleMyLeave()">🌴 Mark myself on leave</button>
+              <button class="topbar-btn primary" onclick="openAddSchedule()">＋ Create schedule</button>
+            </div>
           </div>
+          <div id="sch-leave-banner" style="display:none;margin-top:12px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:12px;color:#92400E">🌴 You're currently marked as on leave — reminders for your schedules are going to each reliever instead.</div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
             <div class="metric-card"><div class="metric-label">Total schedules</div><div class="metric-value" id="sch-total">—</div></div>
             <div class="metric-card danger"><div class="metric-label">Overdue</div><div class="metric-value" id="sch-overdue">—</div></div>
@@ -1381,13 +1385,19 @@ async function doChangePassword(){
 function updateLeaveUI(){
   const badge = document.getElementById('sb-leave-badge');
   const btn = document.getElementById('sb-leave-btn');
+  const schBtn = document.getElementById('sch-leave-btn');
+  const schBanner = document.getElementById('sch-leave-banner');
   if (!badge || !btn) return;
   if (USER?.onLeave) {
     badge.style.display = 'block';
     btn.textContent = '☀️ Back from leave';
+    if (schBtn) schBtn.textContent = '☀️ Mark myself back from leave';
+    if (schBanner) schBanner.style.display = 'block';
   } else {
     badge.style.display = 'none';
     btn.textContent = '🌴 Go on leave';
+    if (schBtn) schBtn.textContent = '🌴 Mark myself on leave';
+    if (schBanner) schBanner.style.display = 'none';
   }
 }
 
