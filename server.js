@@ -462,15 +462,31 @@ app.put('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
     const { name, email, role, department, accessLevel, org, active, password } = req.body;
     const user = await db.findOne({ _id:req.params.id }, { password:0 });
     const update = { name, email:email?.toLowerCase(), role, department, accessLevel, org, active };
+    let emailResult = null;
     if (password && password.length >= 8) {
       update.password = bcrypt.hashSync(password,10);
-      await sendEmail(user.email, 'Your SARE Analytics password has been reset', passwordResetEmail(user.name, user.email, password));
+      emailResult = await sendEmail(user.email, 'Your SARE Analytics password has been reset', passwordResetEmail(user.name, user.email, password));
     }
     if (user && user.active !== active) {
       await sendEmail(user.email, `Your SARE Analytics account has been ${active?'activated':'disabled'}`, accountStatusEmail(user.name, active));
     }
     await db.update({ _id:req.params.id }, { $set:update });
-    res.json({ success:true });
+    const emailStatus = emailResult ? (emailResult.skipped ? 'skipped' : emailResult.error ? 'failed' : 'sent') : null;
+    res.json({ success:true, passwordChanged: !!password && password.length >= 8, emailStatus });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── Dedicated password reset (used by the admin "Reset & send now" action) ─────
+app.post('/api/admin/users/:id/reset-password', auth, adminOnly, async (req,res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const user = await db.findOne({ _id: req.params.id }, { password:0 });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await db.update({ _id: req.params.id }, { $set: { password: bcrypt.hashSync(password,10) } });
+    const emailResult = await sendEmail(user.email, 'Your SARE Analytics password has been reset', passwordResetEmail(user.name, user.email, password));
+    const emailStatus = emailResult.skipped ? 'skipped' : emailResult.error ? 'failed' : 'sent';
+    res.json({ success:true, emailStatus });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
