@@ -1334,7 +1334,7 @@ async function doLogin(){
   btn.disabled=true;btn.textContent='Signing in…';
   try{
     const res=await api('/api/auth/login','POST',{email,password:pass});
-    setSession(res.token,res.user);showApp();
+    setSession(res.token,res.user);await showApp();
   }catch(e){
     document.getElementById('login-error').textContent=e.message;
     document.getElementById('login-error').style.display='block';
@@ -1348,7 +1348,7 @@ async function doRegister(){
   btn.disabled=true;btn.textContent='Creating account…';
   try{
     const res=await api('/api/auth/register','POST',{name:document.getElementById('reg-name').value.trim(),email:document.getElementById('reg-email').value.trim(),org:document.getElementById('reg-org').value.trim(),password:document.getElementById('reg-pass').value,inviteCode:document.getElementById('reg-invite').value.trim()});
-    setSession(res.token,res.user);showApp();
+    setSession(res.token,res.user);await showApp();
   }catch(e){
     document.getElementById('reg-error').textContent=e.message;
     document.getElementById('reg-error').style.display='block';
@@ -1378,9 +1378,10 @@ function openChangePassword(){document.getElementById('app-screen').style.displa
 function setSession(token,user){TOKEN=token;USER=user;localStorage.setItem('sare_token',token);localStorage.setItem('sare_user',JSON.stringify(user));}
 function doLogout(){TOKEN='';USER=null;localStorage.removeItem('sare_token');localStorage.removeItem('sare_user');document.getElementById('app-screen').style.display='none';document.getElementById('auth-screen').style.display='flex';showPanel('login-panel');}
 
-function showApp(){
+async function showApp(){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
+  await reloadChatThreadsForCurrentUser();
   const initials=(USER?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('sb-avatar').textContent=initials;
   document.getElementById('sb-name').textContent=USER?.name||'User';
@@ -4151,14 +4152,28 @@ async function saveVisibility(recordId) {
 
 
 // ── Chat with Reports - state ─────────────────────────────────────────────────
-let chatThreads = JSON.parse(localStorage.getItem('sare_chat_threads') || '[]');
+let chatThreads = [];
 let currentChatThreadId = null;
 let currentChatReport = null; // { filename, dataText }
 
-function saveChatThreadsToStorage() {
-  // Keep max 20 threads, trim message history to last 40 per thread to avoid bloat
+async function saveChatThreadsToStorage() {
+  // Keep max 20 threads, trim message history to last 40 per thread to avoid bloat.
+  // Saved to the server, tied to this account — not browser storage.
   const trimmed = chatThreads.slice(0,20).map(t => ({ ...t, messages: t.messages.slice(-40) }));
-  localStorage.setItem('sare_chat_threads', JSON.stringify(trimmed));
+  try { await api('/api/chat-data', 'PUT', { threads: trimmed }); }
+  catch(e) { console.error('Chat save failed:', e.message); }
+}
+
+async function reloadChatThreadsForCurrentUser() {
+  currentChatThreadId = null;
+  currentChatReport = null;
+  try {
+    const data = await api('/api/chat-data');
+    chatThreads = data.threads || [];
+  } catch(e) {
+    console.error('Chat load failed:', e.message);
+    chatThreads = [];
+  }
 }
 
 function loadChatView() {
