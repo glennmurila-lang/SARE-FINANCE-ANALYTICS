@@ -726,6 +726,11 @@ app.post('/api/schedules', auth, async (req,res) => {
 
 app.put('/api/schedules/:id', auth, async (req,res) => {
   try {
+    const schedule = await schedulesDb.findOne({ _id: req.params.id });
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+    const isOwner = schedule.createdBy === req.user.id;
+    const isAdminOrExec = req.user.role === 'admin' || req.user.accessLevel === 'executive';
+    if (!isOwner && !isAdminOrExec) return res.status(403).json({ error: 'Only the schedule creator or an admin/executive can edit this schedule' });
     const { title, description, reportType, frequency, nextDue, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } = req.body;
     await schedulesDb.update({ _id: req.params.id }, { $set: { title, description, reportType, frequency, nextDue: nextDue ? new Date(nextDue) : undefined, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } });
     res.json({ success: true });
@@ -734,6 +739,11 @@ app.put('/api/schedules/:id', auth, async (req,res) => {
 
 app.delete('/api/schedules/:id', auth, async (req,res) => {
   try {
+    const schedule = await schedulesDb.findOne({ _id: req.params.id });
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+    const isOwner = schedule.createdBy === req.user.id;
+    const isAdminOrExec = req.user.role === 'admin' || req.user.accessLevel === 'executive';
+    if (!isOwner && !isAdminOrExec) return res.status(403).json({ error: 'Only the schedule creator or an admin/executive can delete this schedule' });
     await schedulesDb.remove({ _id: req.params.id });
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
