@@ -3156,8 +3156,9 @@ async function loadSchedules() {
         ${s.description ? `<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px">${s.description}</div>` : ''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="tbl-btn" onclick="sendReminder('${s.id||s._id}','${s.title}')">📧 Send reminder</button>
+          ${(s.createdBy === USER?.id || USER?.role === 'admin' || USER?.accessLevel === 'executive') ? `
           <button class="tbl-btn" onclick="openEditSchedule('${s.id||s._id}')">Edit</button>
-          <button class="tbl-btn red" onclick="deleteSchedule('${s.id||s._id}')">Delete</button>
+          <button class="tbl-btn red" onclick="deleteSchedule('${s.id||s._id}')">Delete</button>` : ''}
         </div>
       </div>`;
     }
