@@ -48,6 +48,39 @@ function parseAIJson(text) {
   }
 }
 
+// ── Auto-continue truncated responses ──────────────────────────────────────────
+// If Claude's response gets cut off by the token limit (stop_reason === 'max_tokens'),
+// automatically ask it to continue from exactly where it stopped and stitch the
+// pieces together, instead of silently handing back a half-finished report.
+// Capped at MAX_CONTINUATIONS extra calls so one huge request can't spiral in cost/time.
+async function callClaudeWithContinuation({ client, model, initialMessages, max_tokens, temperature = 0 }) {
+  const MAX_CONTINUATIONS = 3;
+  let messages = initialMessages.slice();
+  let fullText = '';
+  let continuations = 0;
+  let truncated = false;
+
+  while (true) {
+    const message = await client.messages.create({ model, max_tokens, temperature, messages });
+    const chunkText = (message.content || []).map(b => b.text || '').join('');
+    fullText += chunkText;
+
+    if (message.stop_reason !== 'max_tokens' || continuations >= MAX_CONTINUATIONS) {
+      truncated = message.stop_reason === 'max_tokens';
+      break;
+    }
+    // Ask Claude to pick up exactly where it left off
+    messages = [
+      ...messages,
+      { role: 'assistant', content: chunkText },
+      { role: 'user', content: 'Continue exactly where you left off. Do not repeat any content already provided, do not restart, and do not add any preamble — just continue the text/JSON from the exact cut-off point.' }
+    ];
+    continuations++;
+  }
+
+  return { text: fullText, continuations, truncated };
+}
+
 // ── Deterministic response cache ──────────────────────────────────────────────
 // Same input data + same prompt = same cached output. Prevents inconsistent
 // numbers when the same report is analysed twice by different people.
@@ -96,13 +129,13 @@ async function runSubmissionAnalysis({ title, submitter, department, role, data,
   const prompt = buildSubmissionAnalysisPrompt({ title, submitter, department, role, data });
   const cacheKey = hashPrompt(prompt + '|' + (cacheSuffix||'submission') + '|' + role);
   const callFn = async () => {
-    const message = await anthropic.messages.create({
+    const { text, continuations, truncated } = await callClaudeWithContinuation({
+      client: anthropic,
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
-      temperature: 0,
-      messages: [{ role: 'user', content: prompt }]
+      initialMessages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000
     });
-    const text = (message.content || []).map(b => b.text || '').join('');
+    if (continuations > 0) console.log(`[AUTO-CONTINUE] submission analysis continued ${continuations}x (truncated=${truncated})`);
     let result;
     try {
       result = parseAIJson(text);
@@ -490,22 +523,22 @@ app.post('/api/analyse', auth, async (req,res) => {
     const cacheKey = hashPrompt(fullPrompt + '|' + (maxTokens||1500) + '|' + (expectJson?'json':'text'));
 
     const callFn = async () => {
-      const message = await anthropic.messages.create({
+      const { text, continuations, truncated } = await callClaudeWithContinuation({
+        client: anthropic,
         model: 'claude-sonnet-4-6',
-        max_tokens: maxTokens || 1500,
-        temperature: 0,
-        messages: [{ role: 'user', content: fullPrompt }]
+        initialMessages: [{ role: 'user', content: fullPrompt }],
+        max_tokens: maxTokens || 1500
       });
-      const text = (message.content||[]).map(b=>b.text||'').join('');
+      if (continuations > 0) console.log(`[AUTO-CONTINUE] /api/analyse continued ${continuations}x (truncated=${truncated})`);
       if (expectJson) {
         try {
           const parsed = parseAIJson(text);
-          return { text, parsed, success: true };
+          return { text, parsed, success: true, continuations, truncated };
         } catch(parseErr) {
-          return { text, parseError: parseErr.message };
+          return { text, parseError: parseErr.message, continuations, truncated };
         }
       }
-      return { text, usage: message.usage };
+      return { text, continuations, truncated };
     };
 
     const result = skipCache ? await callFn() : await getCachedOrCall(cacheKey, callFn);
