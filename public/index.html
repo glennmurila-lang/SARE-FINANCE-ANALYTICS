@@ -682,10 +682,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:#dceffe;color:var(--gra
         </div>
 
         <!-- Department activity + Pending reports -->
-        <div class="dash-grid-2" style="margin-bottom:16px">
+        <div class="dash-grid-2" style="margin-bottom:16px" id="dash-grid-dept-reports">
 
-          <!-- Department overview -->
-          <div class="card">
+          <!-- Department overview (manager/senior/executive/admin only — company-wide data) -->
+          <div class="card" id="dept-activity-wrap">
             <div class="dash-section-title">
               🏢 Department activity
               <button class="tbl-btn" onclick="gotoView('admin')" style="font-size:11px">Manage</button>
@@ -1447,6 +1447,7 @@ async function showApp(){
   const userRoleLower = (USER?.role||'').toLowerCase();
   const userAccessLevel = (USER?.accessLevel||'').toLowerCase();
   const canSeeManagerFeatures = managerAllowedRoles.includes(userRoleLower) || userAccessLevel === 'executive' || userAccessLevel === 'senior';
+  window._canSeeManagerFeatures = canSeeManagerFeatures;
   const kpisNav = document.getElementById('nav-kpis');
   if (kpisNav) kpisNav.style.display = canSeeManagerFeatures ? 'flex' : 'none';
   window._canSeeKpis = canSeeManagerFeatures;
@@ -3172,9 +3173,14 @@ async function loadSchedules() {
     const schedules = await api('/api/schedules');
     allSchedules = schedules;
     const now = new Date();
-    const in7 = new Date(now.getTime() + 7*24*60*60*1000);
+    // "This week" = from now through the end of the current calendar week (Sunday night),
+    // not a rolling 7-day window — a rolling window bleeds into next week on any day but Monday.
+    const dayOfWeek = now.getDay() || 7; // Mon=1 .. Sun=7
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() + (7 - dayOfWeek));
+    endOfWeek.setHours(23,59,59,999);
     const overdue = schedules.filter(s => new Date(s.nextDue) < now);
-    const week = schedules.filter(s => new Date(s.nextDue) >= now && new Date(s.nextDue) <= in7);
+    const week = schedules.filter(s => new Date(s.nextDue) >= now && new Date(s.nextDue) <= endOfWeek);
     document.getElementById('sch-total').textContent = schedules.length;
     document.getElementById('sch-overdue').textContent = overdue.length;
     document.getElementById('sch-week').textContent = week.length;
@@ -4763,25 +4769,33 @@ async function loadDashboard() {
         </div>`;
         }).join('');
 
-    // Department activity
-    const deptColors = ['#1B6FE4','#0DAF6A','#D97706','#E53E3E','#534AB7','#0891B2','#DB2777'];
-    const deptSubmissions = {};
-    submissions.forEach(s => { deptSubmissions[s.department] = (deptSubmissions[s.department]||0)+1; });
-    const maxSubs = Math.max(...Object.values(deptSubmissions), 1);
-    document.getElementById('dash-dept-activity').innerHTML = depts.length === 0
-      ? '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No departments configured</div>'
-      : depts.map((d,i) => {
-          const subs = deptSubmissions[d.name]||0;
-          const pct = Math.round((subs/maxSubs)*100)||5;
-          return `<div class="dash-dept-card" style="margin-bottom:8px">
-            <div class="dash-dept-name">
-              <span style="width:10px;height:10px;border-radius:50%;background:${d.color||deptColors[i%deptColors.length]};flex-shrink:0"></span>
-              ${d.name}
-            </div>
-            <div class="dash-dept-bar"><div class="dash-dept-fill" style="width:${pct}%;background:${d.color||deptColors[i%deptColors.length]}"></div></div>
-            <div class="dash-dept-meta">${subs} submission${subs!==1?'s':''} · ${(teamInfo.byDepartment && teamInfo.byDepartment[d.name]) || 0} members</div>
-          </div>`;
-        }).join('');
+    // Department activity — manager/senior/executive/admin only (company-wide data)
+    const deptWrap = document.getElementById('dept-activity-wrap');
+    if (!window._canSeeManagerFeatures) {
+      if (deptWrap) deptWrap.style.display = 'none';
+      const grid = document.getElementById('dash-grid-dept-reports');
+      if (grid) grid.style.gridTemplateColumns = '1fr';
+    } else {
+      if (deptWrap) deptWrap.style.display = 'block';
+      const deptColors = ['#1B6FE4','#0DAF6A','#D97706','#E53E3E','#534AB7','#0891B2','#DB2777'];
+      const deptSubmissions = {};
+      submissions.forEach(s => { deptSubmissions[s.department] = (deptSubmissions[s.department]||0)+1; });
+      const maxSubs = Math.max(...Object.values(deptSubmissions), 1);
+      document.getElementById('dash-dept-activity').innerHTML = depts.length === 0
+        ? '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px">No departments configured</div>'
+        : depts.map((d,i) => {
+            const subs = deptSubmissions[d.name]||0;
+            const pct = Math.round((subs/maxSubs)*100)||5;
+            return `<div class="dash-dept-card" style="margin-bottom:8px">
+              <div class="dash-dept-name">
+                <span style="width:10px;height:10px;border-radius:50%;background:${d.color||deptColors[i%deptColors.length]};flex-shrink:0"></span>
+                ${d.name}
+              </div>
+              <div class="dash-dept-bar"><div class="dash-dept-fill" style="width:${pct}%;background:${d.color||deptColors[i%deptColors.length]}"></div></div>
+              <div class="dash-dept-meta">${subs} submission${subs!==1?'s':''} · ${(teamInfo.byDepartment && teamInfo.byDepartment[d.name]) || 0} members</div>
+            </div>`;
+          }).join('');
+    }
 
     // Report status
     const statusItems = schedules.slice(0,6).map(s => {
