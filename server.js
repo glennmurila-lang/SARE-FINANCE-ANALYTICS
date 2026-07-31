@@ -622,6 +622,7 @@ app.post('/api/history', auth, async (req,res) => {
 app.get('/api/history', auth, async (req,res) => {
   try {
     const isAdmin = req.user.role === 'admin';
+    const isExec = req.user.accessLevel === 'executive';
     const allRecords = await historyDb.find({}).sort({ createdAt: -1 });
 
     // Apply visibility filtering
@@ -630,7 +631,7 @@ app.get('/api/history', auth, async (req,res) => {
       if (r.userId === req.user.id) return true; // always see your own
       const vis = r.visibility || 'department'; // legacy records default to department
       if (vis === 'private') return false; // private = owner only
-      if (vis === 'organisation') return true; // everyone with access sees org-wide
+      if (vis === 'organisation') return isExec; // "Organisation" is promised as executive-level-only in the UI
       if (vis === 'department') return r.department === req.user.department;
       if (vis === 'shared') return (r.sharedWith||[]).includes(req.user.id);
       return false;
@@ -646,10 +647,11 @@ app.get('/api/history/:id', auth, async (req,res) => {
     if (!record) return res.status(404).json({ error: 'Not found' });
     // Check access permission
     const isAdmin = req.user.role === 'admin';
+    const isExec = req.user.accessLevel === 'executive';
     const isOwner = record.userId === req.user.id;
     const vis = record.visibility || 'department';
     const canSee = isAdmin || isOwner ||
-      (vis === 'organisation') ||
+      (vis === 'organisation' && isExec) ||
       (vis === 'department' && record.department === req.user.department) ||
       (vis === 'shared' && (record.sharedWith||[]).includes(req.user.id));
     if (!canSee) return res.status(403).json({ error: 'You do not have permission to view this analysis' });
