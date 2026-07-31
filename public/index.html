@@ -2274,12 +2274,11 @@ async function submitAddUser(){
 async function openEditUser(id,name,email,role,dept,level,org,active){
   const [depts,roles]=await Promise.all([api('/api/departments'),api('/api/roles')]);
   document.getElementById('modal-title').textContent='Edit user';
-  document.getElementById('modal-sub').textContent='Update details, department, role or reset password.';
+  document.getElementById('modal-sub').textContent='Update details, department, or role.';
   document.getElementById('modal-error').style.display='none';
   document.getElementById('modal-body').innerHTML=`
     <div class="form-group"><label class="form-label">Full name</label><input class="form-input" id="m-name" type="text" value="${name}"></div>
     <div class="form-group"><label class="form-label">Email address</label><input class="form-input" id="m-email" type="email" value="${email}"></div>
-    <div class="form-group"><label class="form-label">New password (leave blank to keep)</label><input class="form-input" id="m-pass" type="text" placeholder="Leave blank to keep current"></div>
     <div class="form-group"><label class="form-label">Department</label>
       <select class="form-select" id="m-dept">${depts.map(d=>`<option value="${d.name}" ${d.name===dept?'selected':''}>${d.name}</option>`).join('')}</select>
     </div>
@@ -2293,16 +2292,54 @@ async function openEditUser(id,name,email,role,dept,level,org,active){
         <option value="manager" ${level==='manager'?'selected':''}>Manager — own department summary</option>
         <option value="analyst" ${level==='analyst'?'selected':''}>Analyst — reports only</option>
       </select>
+    </div>
+    <div style="margin-top:8px;padding:14px;border:1.5px solid var(--gray-200);border-radius:10px;background:var(--gray-50)">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">🔑 Reset & resend password</div>
+      <div style="font-size:11px;color:var(--gray-500);margin-bottom:10px">Generates a new password, saves it immediately, and emails it to ${email}. This is separate from the fields above — it doesn't require clicking Save changes.</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="form-input" id="m-reset-pass" type="text" placeholder="Click Generate, or type your own (min 8 characters)" style="flex:1">
+        <button class="tbl-btn" style="white-space:nowrap" onclick="document.getElementById('m-reset-pass').value=generateSecurePassword()">🎲 Generate</button>
+      </div>
+      <button class="btn-primary" style="width:auto;padding:8px 16px;font-size:12px" onclick="resetAndSendPassword('${id}','${email}')">🔑 Reset & send now</button>
+      <div id="m-reset-status" style="font-size:11px;margin-top:8px"></div>
     </div>`;
   document.getElementById('modal-footer').innerHTML=`<button class="btn-secondary" onclick="closeModal()">Cancel</button><button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitEditUser('${id}',${active})">Save changes</button>`;
   document.getElementById('modal-overlay').style.display='flex';
 }
 
+function generateSecurePassword(){
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+  let pass = '';
+  for (let i=0; i<12; i++) pass += chars[Math.floor(Math.random()*chars.length)];
+  return pass;
+}
+
+async function resetAndSendPassword(id, email){
+  const statusEl = document.getElementById('m-reset-status');
+  const pass = document.getElementById('m-reset-pass').value.trim();
+  if (!pass || pass.length < 8) { statusEl.innerHTML = '<span style="color:var(--red)">Enter or generate a password of at least 8 characters</span>'; return; }
+  statusEl.innerHTML = '<span style="color:var(--gray-400)">Sending...</span>';
+  try {
+    const resp = await api('/api/admin/users/'+id+'/reset-password', 'POST', { password: pass });
+    if (resp.emailStatus === 'sent') {
+      statusEl.innerHTML = `<span style="color:var(--green)">✓ Password reset and emailed to ${email}</span>`;
+      toast('✅ Password reset and emailed');
+    } else if (resp.emailStatus === 'skipped') {
+      statusEl.innerHTML = `<span style="color:var(--amber)">⚠ Password reset, but email is not configured (RESEND_API_KEY). Share this password directly: <strong>${pass}</strong></span>`;
+      toast('⚠ Password reset — email not sent, share it manually');
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--amber)">⚠ Password reset, but the email failed to send. Share this password directly: <strong>${pass}</strong></span>`;
+      toast('⚠ Password reset — email failed, share it manually');
+    }
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+  }
+}
+
+
 async function submitEditUser(id,active){
   document.getElementById('modal-error').style.display='none';
-  const pass=document.getElementById('m-pass').value;
   const body={name:document.getElementById('m-name').value.trim(),email:document.getElementById('m-email').value.trim(),role:document.getElementById('m-role').value,department:document.getElementById('m-dept').value,accessLevel:document.getElementById('m-level').value,org:'SARE Analytics',active};
-  if(pass)body.password=pass;
   try{await api('/api/admin/users/'+id,'PUT',body);closeModal();loadUsers();toast('✅ User updated');}
   catch(e){document.getElementById('modal-error').textContent=e.message;document.getElementById('modal-error').style.display='block';}
 }
