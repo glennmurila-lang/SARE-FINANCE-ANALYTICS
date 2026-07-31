@@ -241,6 +241,35 @@ function scheduleNotificationEmail(ownerName, title, description, dueDate, repor
     <div class="notice">📎 Log in to SARE Analytics, go to "My Reports", and upload your Excel or CSV file.</div>`);
 }
 
+function relieverAssignedEmail(relieverName, title, ownerName, dueDate) {
+  const due = dueDate.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  return emailBase(`
+    <div class="greeting">You've been set as a backup 🤝</div>
+    <p class="text">Hi ${relieverName}, you've been designated as the backup (reliever) for the report below, owned by <strong>${ownerName}</strong>.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${title}</span></div>
+      <div class="cred-row"><span class="cred-label">Primary owner</span><span class="cred-value">${ownerName}</span></div>
+      <div class="cred-row"><span class="cred-label">Next due</span><span class="cred-value">${due}</span></div>
+    </div>
+    <div class="notice">🌴 If ${ownerName} marks themselves as on leave, this report's reminders will come to you instead, and it will appear in your own "My Reports" until they return. Any report you submit while covering counts toward your own KPIs.</div>`);
+}
+
+function relieverReminderEmail(relieverName, title, ownerName, dueDate, reportType) {
+  const due = dueDate.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
+  return emailBase(`
+    <div class="greeting">Covering while ${ownerName} is on leave 🌴</div>
+    <p class="text">Hi ${relieverName}, <strong>${ownerName}</strong> is currently marked as on leave, so this report has come to you as their designated backup. Please submit it by the due date.</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">Report</span><span class="cred-value">${title}</span></div>
+      <div class="cred-row"><span class="cred-label">Type</span><span class="cred-value">${typeLabels[reportType]||reportType}</span></div>
+      <div class="cred-row"><span class="cred-label">Due date</span><span class="cred-value">${due}</span></div>
+      <div class="cred-row"><span class="cred-label">Normally owned by</span><span class="cred-value">${ownerName} (on leave)</span></div>
+    </div>
+    <a href="${APP_URL}" class="btn">Log in to submit this report →</a>
+    <div class="notice">📎 This will count toward your own KPIs while you're covering.</div>`);
+}
+
 function submissionNotificationEmail(reviewerName, reportTitle, submitterName, submissionId, reportType) {
   const typeLabels = { financial:'Financial Report', management:'Management Accounts', board:'Board Report', audit:'Audit Report', dashboard:'Dashboard Report', investor:'Investor Brief' };
   return emailBase(`
@@ -330,7 +359,7 @@ app.post('/api/auth/login', async (req,res) => {
       JWT_SECRET, { expiresIn:'7d' }
     );
     await db.update({ _id:user._id }, { $set:{ lastLogin:new Date() } });
-    res.json({ token, user:{ id:user._id, name:user.name, email:user.email, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org } });
+    res.json({ token, user:{ id:user._id, name:user.name, email:user.email, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org, onLeave: !!user.onLeave } });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
@@ -345,7 +374,7 @@ app.post('/api/auth/register', async (req,res) => {
     if (existing) return res.status(409).json({ error:'Email already registered' });
     const user = await db.insert({ name, email:email.toLowerCase(), password:bcrypt.hashSync(password,10), role:'Analyst', department:'Operations', accessLevel:'analyst', org:org||'SARE Analytics', active:true, createdAt:new Date() });
     const token = jwt.sign({ id:user._id, email:user.email, name:user.name, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org }, JWT_SECRET, { expiresIn:'7d' });
-    res.json({ token, user:{ id:user._id, name:user.name, email:user.email, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org } });
+    res.json({ token, user:{ id:user._id, name:user.name, email:user.email, role:user.role, department:user.department, accessLevel:user.accessLevel, org:user.org, onLeave: !!user.onLeave } });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
@@ -462,9 +491,13 @@ app.post('/api/admin/users', auth, adminOnly, async (req,res) => {
 
 app.put('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
   try {
-    const { name, email, role, department, accessLevel, org, active, password } = req.body;
+    const { name, email, role, department, accessLevel, org, active, password, onLeave } = req.body;
     const user = await db.findOne({ _id:req.params.id }, { password:0 });
     const update = { name, email:email?.toLowerCase(), role, department, accessLevel, org, active };
+    if (typeof onLeave === 'boolean') {
+      update.onLeave = onLeave;
+      if (user && user.onLeave !== onLeave) update.leaveSince = onLeave ? new Date() : null;
+    }
     let emailResult = null;
     if (password && password.length >= 8) {
       update.password = bcrypt.hashSync(password,10);
@@ -477,6 +510,16 @@ app.put('/api/admin/users/:id', auth, adminOnly, async (req,res) => {
     const emailStatus = emailResult ? (emailResult.skipped ? 'skipped' : emailResult.error ? 'failed' : 'sent') : null;
     res.json({ success:true, passwordChanged: !!password && password.length >= 8, emailStatus });
   } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── Self-service leave status — mark yourself out on leave / back from leave ───
+app.post('/api/users/me/leave', auth, async (req,res) => {
+  try {
+    const { onLeave } = req.body;
+    if (typeof onLeave !== 'boolean') return res.status(400).json({ error: 'onLeave must be true or false' });
+    await db.update({ _id: req.user.id }, { $set: { onLeave, leaveSince: onLeave ? new Date() : null } });
+    res.json({ success: true, onLeave });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Dedicated password reset (used by the admin "Reset & send now" action) ─────
@@ -737,8 +780,8 @@ app.get('/api/schedules', auth, async (req,res) => {
     let query = {};
     if (!isExec) {
       // Private by default: only the person the work is allocated to (owner), the manager
-      // who created it, or a designated reviewer can see a schedule — not the whole department.
-      query = { $or: [{ ownerId: req.user.id }, { reviewerIds: req.user.id }, { createdBy: req.user.id }] };
+      // who created it, a designated reviewer, or the reliever covering it can see a schedule.
+      query = { $or: [{ ownerId: req.user.id }, { reviewerIds: req.user.id }, { createdBy: req.user.id }, { relieverId: req.user.id }] };
     }
     const schedules = await schedulesDb.find(query).sort({ nextDue: 1 });
     res.json(schedules.map(s => ({ ...s, id: s._id })));
@@ -749,13 +792,15 @@ app.post('/api/schedules', auth, async (req,res) => {
   try {
     const allowed = ['executive','senior','manager'].includes(req.user.accessLevel) || req.user.role === 'admin';
     if (!allowed) return res.status(403).json({ error: 'Senior role or above required to create schedules' });
-    const { title, description, reportType, frequency, firstDueDate, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective } = req.body;
+    const { title, description, reportType, frequency, firstDueDate, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, relieverId, relieverName, relieverEmail } = req.body;
     if (!title || !firstDueDate || !ownerId) return res.status(400).json({ error: 'Title, due date and owner required' });
+    if (!relieverId) return res.status(400).json({ error: 'A reliever (backup) is required for every schedule' });
     const schedule = await schedulesDb.insert({
       title, description: description||'', reportType: reportType||'financial',
       frequency, firstDueDate: new Date(firstDueDate),
       nextDue: new Date(firstDueDate),
       ownerId, ownerName, ownerEmail,
+      relieverId, relieverName: relieverName||'', relieverEmail: relieverEmail||'',
       reviewerIds: reviewerIds||[], department: department||req.user.department,
       perspective: perspective||'cfo',
       createdBy: req.user.id, createdByName: req.user.name,
@@ -765,6 +810,12 @@ app.post('/api/schedules', auth, async (req,res) => {
       `Action required: ${title} is due ${new Date(firstDueDate).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
       scheduleNotificationEmail(ownerName, title, description||'', new Date(firstDueDate), reportType||'financial', schedule._id)
     );
+    if (relieverEmail) {
+      await sendEmail(relieverEmail,
+        `You're the backup for: ${title}`,
+        relieverAssignedEmail(relieverName, title, ownerName, new Date(firstDueDate))
+      );
+    }
     res.json({ ...schedule, id: schedule._id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -776,8 +827,8 @@ app.put('/api/schedules/:id', auth, async (req,res) => {
     const isOwner = schedule.createdBy === req.user.id;
     const isAdminOrExec = req.user.role === 'admin' || req.user.accessLevel === 'executive';
     if (!isOwner && !isAdminOrExec) return res.status(403).json({ error: 'Only the schedule creator or an admin/executive can edit this schedule' });
-    const { title, description, reportType, frequency, nextDue, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } = req.body;
-    await schedulesDb.update({ _id: req.params.id }, { $set: { title, description, reportType, frequency, nextDue: nextDue ? new Date(nextDue) : undefined, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active } });
+    const { title, description, reportType, frequency, nextDue, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active, relieverId, relieverName, relieverEmail } = req.body;
+    await schedulesDb.update({ _id: req.params.id }, { $set: { title, description, reportType, frequency, nextDue: nextDue ? new Date(nextDue) : undefined, ownerId, ownerName, ownerEmail, reviewerIds, department, perspective, active, relieverId, relieverName, relieverEmail } });
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -821,10 +872,23 @@ app.get('/api/submissions', auth, async (req,res) => {
 
 app.get('/api/submissions/pending', auth, async (req,res) => {
   try {
-    const mySchedules = await schedulesDb.find({ ownerId: req.user.id, active: true });
     const now = new Date();
-    const pending = mySchedules.filter(s => new Date(s.nextDue) <= new Date(now.getTime() + 3*24*60*60*1000));
-    res.json(pending.map(s => ({ ...s, id: s._id })));
+    const windowEnd = new Date(now.getTime() + 3*24*60*60*1000);
+
+    const ownSchedules = await schedulesDb.find({ ownerId: req.user.id, active: true });
+    const ownPending = ownSchedules.filter(s => new Date(s.nextDue) <= windowEnd).map(s => ({ ...s, id: s._id, covering: false }));
+
+    // Also include schedules where this user is the designated reliever, but only
+    // while the actual owner is currently marked on leave.
+    const relieverSchedules = await schedulesDb.find({ relieverId: req.user.id, active: true });
+    const relieverPending = [];
+    for (const s of relieverSchedules) {
+      if (new Date(s.nextDue) > windowEnd) continue;
+      const owner = await db.findOne({ _id: s.ownerId });
+      if (owner?.onLeave) relieverPending.push({ ...s, id: s._id, covering: true });
+    }
+
+    res.json([...ownPending, ...relieverPending]);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1149,11 +1213,21 @@ app.post('/api/schedules/:id/remind', auth, async (req,res) => {
   try {
     const schedule = await schedulesDb.findOne({ _id: req.params.id });
     if (!schedule) return res.status(404).json({ error: 'Not found' });
-    await sendEmail(schedule.ownerEmail,
-      `Reminder: ${schedule.title} is due ${new Date(schedule.nextDue).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
-      scheduleNotificationEmail(schedule.ownerName, schedule.title, schedule.description, new Date(schedule.nextDue), schedule.reportType, schedule._id)
-    );
-    res.json({ success: true });
+    const owner = await db.findOne({ _id: schedule.ownerId });
+    const ownerOnLeave = !!owner?.onLeave;
+    if (ownerOnLeave && schedule.relieverEmail) {
+      await sendEmail(schedule.relieverEmail,
+        `Reminder (covering for ${schedule.ownerName}): ${schedule.title} is due ${new Date(schedule.nextDue).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
+        relieverReminderEmail(schedule.relieverName, schedule.title, schedule.ownerName, new Date(schedule.nextDue), schedule.reportType)
+      );
+      res.json({ success: true, sentTo: 'reliever', relieverName: schedule.relieverName });
+    } else {
+      await sendEmail(schedule.ownerEmail,
+        `Reminder: ${schedule.title} is due ${new Date(schedule.nextDue).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}`,
+        scheduleNotificationEmail(schedule.ownerName, schedule.title, schedule.description, new Date(schedule.nextDue), schedule.reportType, schedule._id)
+      );
+      res.json({ success: true, sentTo: 'owner' });
+    }
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
