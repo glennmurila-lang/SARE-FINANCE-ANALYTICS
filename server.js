@@ -86,6 +86,9 @@ async function callClaudeWithContinuation({ client, model, initialMessages, max_
 // numbers when the same report is analysed twice by different people.
 const crypto = require('crypto');
 const aiCacheDb = Datastore.create({ filename: path.join(__dirname, 'data', 'ai_cache.db'), autoload: true });
+// Chat with Reports — one document per user, tied to their account. No delete route exists
+// for this data by design: chat history persists on the server and is never removable.
+const chatDataDb = Datastore.create({ filename: path.join(__dirname, 'data', 'chat_data.db'), autoload: true });
 
 function hashPrompt(str) {
   return crypto.createHash('sha256').update(str).digest('hex');
@@ -619,6 +622,28 @@ app.post('/api/history', auth, async (req,res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Chat with Reports — server-side storage, tied to account, no delete route ──
+app.get('/api/chat-data', auth, async (req,res) => {
+  try {
+    const doc = await chatDataDb.findOne({ userId: req.user.id });
+    res.json({ threads: doc?.threads || [] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/chat-data', auth, async (req,res) => {
+  try {
+    const { threads } = req.body;
+    if (!Array.isArray(threads)) return res.status(400).json({ error: 'threads must be an array' });
+    await chatDataDb.update(
+      { userId: req.user.id },
+      { $set: { userId: req.user.id, threads, updatedAt: new Date() } },
+      { upsert: true }
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+// Intentionally no DELETE /api/chat-data route — chat history cannot be removed by anyone.
+
 app.get('/api/history', auth, async (req,res) => {
   try {
     const isAdmin = req.user.role === 'admin';
@@ -711,7 +736,9 @@ app.get('/api/schedules', auth, async (req,res) => {
     const isExec = ['executive'].includes(req.user.accessLevel) || req.user.role === 'admin';
     let query = {};
     if (!isExec) {
-      query = { $or: [{ ownerId: req.user.id }, { reviewerIds: req.user.id }, { department: req.user.department }] };
+      // Private by default: only the person the work is allocated to (owner), the manager
+      // who created it, or a designated reviewer can see a schedule — not the whole department.
+      query = { $or: [{ ownerId: req.user.id }, { reviewerIds: req.user.id }, { createdBy: req.user.id }] };
     }
     const schedules = await schedulesDb.find(query).sort({ nextDue: 1 });
     res.json(schedules.map(s => ({ ...s, id: s._id })));
